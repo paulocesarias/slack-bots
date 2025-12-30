@@ -2,15 +2,29 @@ services:
   slack-bots:
     build: .
     container_name: slack-bots
-    ports:
-      - "3000:3000"
+    restart: unless-stopped
+    expose:
+      - "3000"
     environment:
       - PORT=3000
       - NODE_ENV=production
-    restart: unless-stopped
+    networks:
+      - n8n_default
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=n8n_default
+      - traefik.http.routers.slack-bots.rule=Host(`slackbots.headbangtech.cloud`)
+      - traefik.http.routers.slack-bots.tls=true
+      - traefik.http.routers.slack-bots.entrypoints=web,websecure
+      - traefik.http.routers.slack-bots.tls.certresolver=mytlschallenge
+      - traefik.http.services.slack-bots.loadbalancer.server.port=3000
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+
+networks:
+  n8n_default:
+    external: true
