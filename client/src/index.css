@@ -21,6 +21,13 @@ header {
   margin-bottom: 2rem;
 }
 
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 2rem;
+}
+
 header h1 {
   font-size: 2rem;
   color: #f8fafc;
@@ -29,6 +36,112 @@ header h1 {
 
 header p {
   color: #94a3b8;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: #1e293b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #334155;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #f1f5f9;
+  font-size: 0.875rem;
+}
+
+.user-email {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* Login Page */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.login-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 16px;
+  padding: 2.5rem;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.login-header h1 {
+  font-size: 2rem;
+  color: #f8fafc;
+  margin-bottom: 0.5rem;
+}
+
+.login-header p {
+  color: #94a3b8;
+  margin-bottom: 2rem;
+}
+
+.login-content {
+  margin: 2rem 0;
+}
+
+.login-content p {
+  color: #cbd5e1;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.google-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: white;
+  color: #1f2937;
+  text-decoration: none;
+  padding: 0.875rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.google-btn:hover {
+  background: #f3f4f6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.google-btn svg {
+  flex-shrink: 0;
+}
+
+.login-footer {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #334155;
+}
+
+.login-footer p {
+  font-size: 0.8rem;
+  color: #64748b;
 }
 
 .container {
@@ -40,6 +153,15 @@ header p {
 @media (max-width: 900px) {
   .container {
     grid-template-columns: 1fr;
+  }
+
+  .header-content {
+    flex-direction: column;
+  }
+
+  .user-info {
+    width: 100%;
+    justify-content: center;
   }
 }
 
