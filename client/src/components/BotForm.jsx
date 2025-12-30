@@ -3,6 +3,7 @@ import { useState } from 'react'
 function BotForm({ onBotCreated, onError }) {
   const [name, setName] = useState('')
   const [slackToken, setSlackToken] = useState('')
+  const [channelName, setChannelName] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
@@ -15,7 +16,7 @@ function BotForm({ onBotCreated, onError }) {
       const res = await fetch('/api/bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slackToken, description })
+        body: JSON.stringify({ name, slackToken, channelName: channelName || undefined, description })
       })
 
       const data = await res.json()
@@ -27,6 +28,7 @@ function BotForm({ onBotCreated, onError }) {
       onBotCreated(data)
       setName('')
       setSlackToken('')
+      setChannelName('')
       setDescription('')
     } catch (error) {
       onError(error.message)
@@ -86,6 +88,7 @@ function BotForm({ onBotCreated, onError }) {
                 <ul>
                   <li><code>app_mentions:read</code></li>
                   <li><code>channels:history</code></li>
+                  <li><code>channels:manage</code> (for channel creation)</li>
                   <li><code>chat:write</code></li>
                   <li><code>im:history</code></li>
                   <li><code>im:read</code></li>
@@ -99,6 +102,18 @@ function BotForm({ onBotCreated, onError }) {
             </ol>
           </div>
         )}
+
+        <div className="form-group">
+          <label htmlFor="channelName">Slack Channel Name (optional)</label>
+          <input
+            id="channelName"
+            type="text"
+            value={channelName}
+            onChange={(e) => setChannelName(e.target.value)}
+            placeholder={`claude-bot-${name.toLowerCase() || 'name'}`}
+          />
+          <small>Leave empty to use default: <code>claude-bot-{name.toLowerCase() || 'name'}</code></small>
+        </div>
 
         <div className="form-group">
           <label htmlFor="description">Description (optional)</label>
@@ -119,10 +134,11 @@ function BotForm({ onBotCreated, onError }) {
       <div className="info-box">
         <h4>What happens when you create a bot:</h4>
         <ol>
+          <li>Slack token is validated</li>
+          <li>Slack channel <code>#{channelName || `claude-bot-${name.toLowerCase() || 'name'}`}</code> is created</li>
           <li>Linux user <code>paulo-{name.toLowerCase() || 'name'}</code> is created</li>
           <li>SSH keypair is generated for n8n access</li>
-          <li>SSH credential is created in n8n</li>
-          <li>Slack credential is created in n8n</li>
+          <li>n8n credentials (SSH + Slack) are created</li>
           <li>Workflow is cloned from template</li>
         </ol>
         <p>After creation, open the workflow in n8n to test and activate it.</p>

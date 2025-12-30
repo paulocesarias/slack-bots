@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS bots (
   ssh_credential_id TEXT,
   slack_credential_id TEXT,
   workflow_id TEXT,
+  slack_channel_id TEXT,
+  slack_channel_name TEXT,
   status TEXT DEFAULT 'created',
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

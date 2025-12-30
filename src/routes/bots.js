@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db');
 const linuxService = require('../services/linux');
 const sshService = require('../services/ssh');
+const slackService = require('../services/slack');
 const n8nService = require('../services/n8n');
 
 // Get all bots
@@ -35,6 +36,7 @@ router.post('/', async (req, res) => {
   const {
     name,           // Bot name (e.g., "BL", "TP")
     slackToken,     // Slack Bot OAuth Token
+    channelName,    // Optional: Slack channel name to create
     description,    // Optional description
   } = req.body;
 
@@ -50,18 +52,32 @@ router.post('/', async (req, res) => {
 
   const username = `paulo-${sanitizedName}`;
   const botDisplayName = sanitizedName.toUpperCase();
+  const defaultChannelName = channelName || `claude-bot-${sanitizedName}`;
 
   let sshCredential = null;
   let slackCredential = null;
   let workflow = null;
-  let privateKey = null;
+  let slackChannel = null;
 
   try {
-    // Step 1: Generate SSH keypair
-    const keypair = sshService.generateKeyPair();
-    privateKey = keypair.privateKey;
+    // Step 1: Validate Slack token
+    const tokenValidation = await slackService.validateToken(slackToken);
+    if (!tokenValidation.valid) {
+      throw new Error(`Invalid Slack token: ${tokenValidation.error}`);
+    }
 
-    // Step 2: Create Linux user
+    // Step 2: Create Slack channel
+    try {
+      slackChannel = await slackService.createChannel(slackToken, defaultChannelName);
+    } catch (channelError) {
+      // Channel creation might fail due to missing scopes, continue anyway
+      console.warn('Could not create Slack channel:', channelError.message);
+    }
+
+    // Step 3: Generate SSH keypair
+    const keypair = sshService.generateKeyPair();
+
+    // Step 4: Create Linux user
     const userResult = linuxService.createUser(username, keypair.publicKey);
     if (!userResult.success) {
       // User might already exist, try to update SSH key
@@ -72,20 +88,20 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Step 3: Create n8n SSH credential
+    // Step 5: Create n8n SSH credential
     sshCredential = await n8nService.createSSHCredential(
       botDisplayName,
       username,
       keypair.privateKey
     );
 
-    // Step 4: Create n8n Slack credential
+    // Step 6: Create n8n Slack credential
     slackCredential = await n8nService.createSlackCredential(
       botDisplayName,
       slackToken
     );
 
-    // Step 5: Create n8n workflow from template
+    // Step 7: Create n8n workflow from template
     workflow = await n8nService.createWorkflow(
       botDisplayName,
       username,
@@ -95,10 +111,10 @@ router.post('/', async (req, res) => {
       slackCredential.name
     );
 
-    // Step 6: Save bot to database
+    // Step 8: Save bot to database
     const stmt = db.prepare(`
-      INSERT INTO bots (name, username, description, ssh_credential_id, slack_credential_id, workflow_id, status)
-      VALUES (?, ?, ?, ?, ?, ?, 'created')
+      INSERT INTO bots (name, username, description, ssh_credential_id, slack_credential_id, workflow_id, slack_channel_id, slack_channel_name, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created')
     `);
     const result = stmt.run(
       botDisplayName,
@@ -106,7 +122,9 @@ router.post('/', async (req, res) => {
       description || null,
       sshCredential.id,
       slackCredential.id,
-      workflow.id
+      workflow.id,
+      slackChannel?.channel?.id || null,
+      slackChannel?.channel?.name || null
     );
 
     res.json({
@@ -117,9 +135,12 @@ router.post('/', async (req, res) => {
         username,
         workflow_id: workflow.id,
         workflow_url: `https://n8n.headbangtech.com/workflow/${workflow.id}`,
+        slack_channel: slackChannel?.channel || null,
         status: 'created',
       },
-      message: 'Bot created successfully! Open the workflow in n8n to test and activate it.',
+      message: slackChannel
+        ? `Bot created successfully! Channel #${slackChannel.channel.name} was ${slackChannel.existed ? 'found' : 'created'}. Open the workflow in n8n to test and activate it.`
+        : 'Bot created successfully! Open the workflow in n8n to test and activate it.',
     });
 
   } catch (error) {
