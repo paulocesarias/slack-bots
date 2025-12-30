@@ -521,6 +521,45 @@ button.danger:hover {
   color: #93c5fd;
 }
 
+.advanced-toggle {
+  margin: 1rem 0;
+}
+
+.toggle-btn {
+  background: none;
+  border: 1px solid #475569;
+  color: #94a3b8;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  text-align: left;
+}
+
+.toggle-btn:hover {
+  background: #1e293b;
+  border-color: #64748b;
+  color: #cbd5e1;
+}
+
+.advanced-options {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.advanced-options .form-group {
+  margin-bottom: 1rem;
+}
+
+.advanced-options .form-group:last-child {
+  margin-bottom: 0;
+}
+
 .info-box {
   background: #1e3a5f;
   border: 1px solid #3b82f6;

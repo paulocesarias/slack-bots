@@ -4,13 +4,18 @@ function BotForm({ onBotCreated, onError }) {
   const [name, setName] = useState('')
   const [slackToken, setSlackToken] = useState('')
   const [channelName, setChannelName] = useState('')
+  const [customUsername, setCustomUsername] = useState('')
+  const [sshPublicKey, setSshPublicKey] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  const defaultUsername = `paulo-${name.toLowerCase() || 'name'}`
+  const effectiveUsername = customUsername || defaultUsername
+
   const generateManifest = () => {
-    const botName = name.toLowerCase() || 'my-bot'
     return JSON.stringify({
       display_information: {
         name: `Claude Bot ${name.toUpperCase() || 'NAME'}`
@@ -70,7 +75,14 @@ function BotForm({ onBotCreated, onError }) {
       const res = await fetch('/api/bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slackToken, channelName: channelName || undefined, description })
+        body: JSON.stringify({
+          name,
+          slackToken,
+          channelName: channelName || undefined,
+          customUsername: customUsername || undefined,
+          sshPublicKey: sshPublicKey || undefined,
+          description
+        })
       })
 
       const data = await res.json()
@@ -83,7 +95,10 @@ function BotForm({ onBotCreated, onError }) {
       setName('')
       setSlackToken('')
       setChannelName('')
+      setCustomUsername('')
+      setSshPublicKey('')
       setDescription('')
+      setShowAdvanced(false)
     } catch (error) {
       onError(error.message)
     } finally {
@@ -106,7 +121,7 @@ function BotForm({ onBotCreated, onError }) {
             pattern="[a-zA-Z0-9]+"
             title="Only letters and numbers allowed"
           />
-          <small>This will create Linux user: <code>paulo-{name.toLowerCase() || 'name'}</code></small>
+          <small>Used for naming credentials and workflow in n8n</small>
         </div>
 
         <div className="form-group">
@@ -171,6 +186,46 @@ function BotForm({ onBotCreated, onError }) {
           <small>Leave empty to use default: <code>claude-bot-{name.toLowerCase() || 'name'}</code></small>
         </div>
 
+        <div className="advanced-toggle">
+          <button
+            type="button"
+            className="toggle-btn"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? '▼ Hide Advanced Options' : '▶ Advanced Options (Linux user, SSH key)'}
+          </button>
+        </div>
+
+        {showAdvanced && (
+          <div className="advanced-options">
+            <div className="form-group">
+              <label htmlFor="customUsername">Linux Username (optional)</label>
+              <input
+                id="customUsername"
+                type="text"
+                value={customUsername}
+                onChange={(e) => setCustomUsername(e.target.value)}
+                placeholder={defaultUsername}
+                pattern="[a-z][a-z0-9_-]*"
+                title="Must start with lowercase letter, can contain lowercase letters, numbers, underscores, and hyphens"
+              />
+              <small>Leave empty to use default: <code>{defaultUsername}</code></small>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="sshPublicKey">SSH Public Key (optional)</label>
+              <textarea
+                id="sshPublicKey"
+                value={sshPublicKey}
+                onChange={(e) => setSshPublicKey(e.target.value)}
+                placeholder="ssh-rsa AAAA... or ssh-ed25519 AAAA..."
+                rows={3}
+              />
+              <small>Provide your own public key, or leave empty to auto-generate a keypair</small>
+            </div>
+          </div>
+        )}
+
         <div className="form-group">
           <label htmlFor="description">Description (optional)</label>
           <input
@@ -192,8 +247,8 @@ function BotForm({ onBotCreated, onError }) {
         <ol>
           <li>Slack token is validated</li>
           <li>Slack channel <code>#{channelName || `claude-bot-${name.toLowerCase() || 'name'}`}</code> is created</li>
-          <li>Linux user <code>paulo-{name.toLowerCase() || 'name'}</code> is created</li>
-          <li>SSH keypair is generated for n8n access</li>
+          <li>Linux user <code>{effectiveUsername}</code> is created</li>
+          <li>{sshPublicKey ? 'Your SSH public key is added' : 'SSH keypair is generated'} for n8n access</li>
           <li>n8n credentials (SSH + Slack) are created</li>
           <li>Workflow is cloned from template</li>
         </ol>

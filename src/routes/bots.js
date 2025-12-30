@@ -37,6 +37,8 @@ router.post('/', async (req, res) => {
     name,           // Bot name (e.g., "BL", "TP")
     slackToken,     // Slack Bot OAuth Token
     channelName,    // Optional: Slack channel name to create
+    customUsername, // Optional: Custom Linux username
+    sshPublicKey,   // Optional: User-provided SSH public key
     description,    // Optional description
   } = req.body;
 
@@ -50,7 +52,14 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'name must be 1-20 alphanumeric characters' });
   }
 
-  const username = `paulo-${sanitizedName}`;
+  // Use custom username if provided, otherwise default
+  const username = customUsername || `paulo-${sanitizedName}`;
+
+  // Validate username format if custom
+  if (customUsername && !/^[a-z][a-z0-9_-]*$/.test(customUsername)) {
+    return res.status(400).json({ error: 'username must start with lowercase letter and contain only lowercase letters, numbers, underscores, and hyphens' });
+  }
+
   const botDisplayName = sanitizedName.toUpperCase();
   const defaultChannelName = channelName || `claude-bot-${sanitizedName}`;
 
@@ -58,6 +67,7 @@ router.post('/', async (req, res) => {
   let slackCredential = null;
   let workflow = null;
   let slackChannel = null;
+  let keypair = null;
 
   try {
     // Step 1: Validate Slack token
@@ -74,8 +84,17 @@ router.post('/', async (req, res) => {
       console.warn('Could not create Slack channel:', channelError.message);
     }
 
-    // Step 3: Generate SSH keypair
-    const keypair = sshService.generateKeyPair();
+    // Step 3: Generate SSH keypair or use provided public key
+    if (sshPublicKey) {
+      // Validate the provided public key format
+      const keyPattern = /^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp\d+|ssh-dss)\s+[A-Za-z0-9+/]+[=]*(\s+.*)?$/;
+      if (!keyPattern.test(sshPublicKey.trim())) {
+        throw new Error('Invalid SSH public key format. Must be OpenSSH format (ssh-rsa, ssh-ed25519, etc.)');
+      }
+      keypair = { publicKey: sshPublicKey.trim(), privateKey: null };
+    } else {
+      keypair = sshService.generateKeyPair();
+    }
 
     // Step 4: Create Linux user
     const userResult = linuxService.createUser(username, keypair.publicKey);
@@ -88,12 +107,18 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Step 5: Create n8n SSH credential
-    sshCredential = await n8nService.createSSHCredential(
-      botDisplayName,
-      username,
-      keypair.privateKey
-    );
+    // Step 5: Create n8n SSH credential (only if we generated the keypair)
+    if (keypair.privateKey) {
+      sshCredential = await n8nService.createSSHCredential(
+        botDisplayName,
+        username,
+        keypair.privateKey
+      );
+    } else {
+      // User provided their own key - they need to configure n8n credential manually
+      // Create a placeholder credential note
+      console.log(`User provided SSH public key for ${username} - n8n SSH credential must be configured manually`);
+    }
 
     // Step 6: Create n8n Slack credential
     slackCredential = await n8nService.createSlackCredential(
@@ -105,8 +130,8 @@ router.post('/', async (req, res) => {
     workflow = await n8nService.createWorkflow(
       botDisplayName,
       username,
-      sshCredential.id,
-      sshCredential.name,
+      sshCredential?.id || null,
+      sshCredential?.name || `SSH - ${botDisplayName} (manual)`,
       slackCredential.id,
       slackCredential.name
     );
@@ -120,12 +145,22 @@ router.post('/', async (req, res) => {
       botDisplayName,
       username,
       description || null,
-      sshCredential.id,
+      sshCredential?.id || null,
       slackCredential.id,
       workflow.id,
       slackChannel?.channel?.id || null,
       slackChannel?.channel?.name || null
     );
+
+    const messageparts = [];
+    messageparts.push('Bot created successfully!');
+    if (slackChannel) {
+      messageparts.push(`Channel #${slackChannel.channel.name} was ${slackChannel.existed ? 'found' : 'created'}.`);
+    }
+    if (!keypair.privateKey) {
+      messageparts.push('You provided your own SSH key - configure the n8n SSH credential manually.');
+    }
+    messageparts.push('Open the workflow in n8n to test and activate it.');
 
     res.json({
       success: true,
@@ -137,10 +172,9 @@ router.post('/', async (req, res) => {
         workflow_url: `https://n8n.headbangtech.com/workflow/${workflow.id}`,
         slack_channel: slackChannel?.channel || null,
         status: 'created',
+        ssh_key_provided: !!sshPublicKey,
       },
-      message: slackChannel
-        ? `Bot created successfully! Channel #${slackChannel.channel.name} was ${slackChannel.existed ? 'found' : 'created'}. Open the workflow in n8n to test and activate it.`
-        : 'Bot created successfully! Open the workflow in n8n to test and activate it.',
+      message: messageparts.join(' '),
     });
 
   } catch (error) {
