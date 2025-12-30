@@ -3,11 +3,18 @@ services:
     build: .
     container_name: slack-bots
     restart: unless-stopped
+    privileged: true
     expose:
       - "3000"
     environment:
       - PORT=3000
       - NODE_ENV=production
+    volumes:
+      - slack-bots-data:/app/data
+      - /etc/passwd:/etc/passwd:rw
+      - /etc/shadow:/etc/shadow:rw
+      - /etc/group:/etc/group:rw
+      - /home:/home:rw
     networks:
       - n8n_default
       - n8n-workflows_default
@@ -33,6 +40,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+volumes:
+  slack-bots-data:
 
 networks:
   n8n_default:
