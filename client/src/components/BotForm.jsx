@@ -7,6 +7,60 @@ function BotForm({ onBotCreated, onError }) {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const generateManifest = () => {
+    const botName = name.toLowerCase() || 'my-bot'
+    return JSON.stringify({
+      display_information: {
+        name: `Claude Bot ${name.toUpperCase() || 'NAME'}`
+      },
+      features: {
+        bot_user: {
+          display_name: `Claude Bot ${name.toUpperCase() || 'NAME'}`,
+          always_online: true
+        }
+      },
+      oauth_config: {
+        scopes: {
+          bot: [
+            "app_mentions:read",
+            "channels:history",
+            "channels:manage",
+            "channels:read",
+            "chat:write",
+            "groups:history",
+            "groups:read",
+            "im:history",
+            "im:read",
+            "im:write",
+            "files:read"
+          ]
+        }
+      },
+      settings: {
+        event_subscriptions: {
+          bot_events: [
+            "app_mention",
+            "message.im"
+          ]
+        },
+        org_deploy_enabled: false,
+        socket_mode_enabled: false,
+        token_rotation_enabled: false
+      }
+    }, null, 2)
+  }
+
+  const copyManifest = async () => {
+    try {
+      await navigator.clipboard.writeText(generateManifest())
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      onError('Failed to copy to clipboard')
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -52,7 +106,7 @@ function BotForm({ onBotCreated, onError }) {
             pattern="[a-zA-Z0-9]+"
             title="Only letters and numbers allowed"
           />
-          <small>This will create Linux user: paulo-{name.toLowerCase() || 'name'}</small>
+          <small>This will create Linux user: <code>paulo-{name.toLowerCase() || 'name'}</code></small>
         </div>
 
         <div className="form-group">
@@ -63,7 +117,7 @@ function BotForm({ onBotCreated, onError }) {
               className="help-toggle"
               onClick={() => setShowHelp(!showHelp)}
             >
-              {showHelp ? 'Hide help' : 'How to get this?'}
+              {showHelp ? 'Hide help' : 'How to create Slack App?'}
             </button>
           </label>
           <input
@@ -78,28 +132,30 @@ function BotForm({ onBotCreated, onError }) {
 
         {showHelp && (
           <div className="help-box">
-            <h4>How to get a Slack Bot Token:</h4>
+            <h4>Quick Setup with App Manifest:</h4>
             <ol>
               <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer">api.slack.com/apps</a></li>
-              <li>Click "Create New App" → "From scratch"</li>
-              <li>Name your app (e.g., "Claude Bot BL") and select your workspace</li>
-              <li>Go to "OAuth & Permissions" in the sidebar</li>
-              <li>Add these Bot Token Scopes:
-                <ul>
-                  <li><code>app_mentions:read</code></li>
-                  <li><code>channels:history</code></li>
-                  <li><code>channels:manage</code> (for channel creation)</li>
-                  <li><code>chat:write</code></li>
-                  <li><code>im:history</code></li>
-                  <li><code>im:read</code></li>
-                  <li><code>im:write</code></li>
-                </ul>
-              </li>
-              <li>Click "Install to Workspace" at the top</li>
-              <li>Copy the "Bot User OAuth Token" (starts with xoxb-)</li>
-              <li>Go to "Event Subscriptions" → Enable Events</li>
-              <li>Subscribe to bot events: <code>app_mention</code>, <code>message.im</code></li>
+              <li>Click <strong>"Create New App"</strong> → <strong>"From an app manifest"</strong></li>
+              <li>Select your workspace</li>
+              <li>Choose <strong>JSON</strong> tab and paste this manifest:</li>
             </ol>
+
+            <div className="manifest-container">
+              <pre className="manifest-code">{generateManifest()}</pre>
+              <button type="button" className="copy-btn" onClick={copyManifest}>
+                {copied ? 'Copied!' : 'Copy Manifest'}
+              </button>
+            </div>
+
+            <ol start={5}>
+              <li>Click <strong>"Next"</strong> → <strong>"Create"</strong></li>
+              <li>Go to <strong>"Install App"</strong> in sidebar → <strong>"Install to Workspace"</strong></li>
+              <li>Copy the <strong>"Bot User OAuth Token"</strong> (starts with xoxb-)</li>
+            </ol>
+
+            <div className="help-note">
+              <strong>Note:</strong> Event subscriptions URL will be auto-configured when you activate the workflow in n8n.
+            </div>
           </div>
         )}
 
