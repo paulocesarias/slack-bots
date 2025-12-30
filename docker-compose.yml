@@ -10,16 +10,25 @@ services:
       - NODE_ENV=production
     networks:
       - n8n_default
+      - n8n-workflows_default
     labels:
       - traefik.enable=true
-      - traefik.docker.network=n8n_default
-      - traefik.http.routers.slack-bots.rule=Host(`slackbots.headbangtech.cloud`)
-      - traefik.http.routers.slack-bots.tls=true
-      - traefik.http.routers.slack-bots.entrypoints=web,websecure
-      - traefik.http.routers.slack-bots.tls.certresolver=mytlschallenge
-      - traefik.http.services.slack-bots.loadbalancer.server.port=3000
+      - traefik.docker.network=n8n-workflows_default
+      - traefik.http.routers.slackbots.rule=Host(`slackbots.headbangtech.cloud`)
+      - traefik.http.routers.slackbots.tls=true
+      - traefik.http.routers.slackbots.entrypoints=web,websecure
+      - traefik.http.routers.slackbots.tls.certresolver=mytlschallenge
+      - traefik.http.services.slackbots.loadbalancer.server.port=3000
+      - traefik.http.middlewares.slackbots.headers.SSLRedirect=true
+      - traefik.http.middlewares.slackbots.headers.STSSeconds=315360000
+      - traefik.http.middlewares.slackbots.headers.browserXSSFilter=true
+      - traefik.http.middlewares.slackbots.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.slackbots.headers.forceSTSHeader=true
+      - traefik.http.middlewares.slackbots.headers.STSIncludeSubdomains=true
+      - traefik.http.middlewares.slackbots.headers.STSPreload=true
+      - traefik.http.routers.slackbots.middlewares=slackbots@docker
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -27,4 +36,6 @@ services:
 
 networks:
   n8n_default:
+    external: true
+  n8n-workflows_default:
     external: true
