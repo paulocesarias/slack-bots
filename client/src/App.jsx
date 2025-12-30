@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
-import UserForm from './components/UserForm'
-import UserList from './components/UserList'
-import KeyGenerator from './components/KeyGenerator'
 import Login from './components/Login'
+import BotForm from './components/BotForm'
+import BotList from './components/BotList'
 
 function App() {
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [users, setUsers] = useState([])
+  const [bots, setBots] = useState([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState(null)
 
@@ -29,17 +28,17 @@ function App() {
     checkAuth()
   }, [])
 
-  const fetchUsers = async () => {
+  const fetchBots = async () => {
     try {
-      const res = await fetch('/api/users')
+      const res = await fetch('/api/bots')
       if (res.status === 401) {
         setUser(null)
         return
       }
       const data = await res.json()
-      setUsers(data)
+      setBots(data)
     } catch (error) {
-      console.error('Failed to fetch users:', error)
+      console.error('Failed to fetch bots:', error)
     } finally {
       setLoading(false)
     }
@@ -47,7 +46,7 @@ function App() {
 
   useEffect(() => {
     if (user) {
-      fetchUsers()
+      fetchBots()
     }
   }, [user])
 
@@ -55,7 +54,7 @@ function App() {
     try {
       await fetch('/auth/logout', { method: 'POST' })
       setUser(null)
-      setUsers([])
+      setBots([])
     } catch (error) {
       console.error('Logout failed:', error)
     }
@@ -63,17 +62,21 @@ function App() {
 
   const showMessage = (type, text) => {
     setMessage({ type, text })
-    setTimeout(() => setMessage(null), 5000)
+    setTimeout(() => setMessage(null), 8000)
   }
 
-  const handleUserCreated = (newUser) => {
-    setUsers(prev => [newUser, ...prev])
-    showMessage('success', `User "${newUser.username}" created successfully!`)
+  const handleBotCreated = (result) => {
+    fetchBots()
+    showMessage('success', result.message)
   }
 
-  const handleUserDeleted = (username) => {
-    setUsers(prev => prev.filter(u => u.username !== username))
-    showMessage('success', `User "${username}" deleted successfully!`)
+  const handleBotDeleted = (botId) => {
+    setBots(prev => prev.filter(b => b.id !== botId))
+    showMessage('success', 'Bot deleted successfully!')
+  }
+
+  const handleBotStatusChanged = () => {
+    fetchBots()
   }
 
   const handleError = (error) => {
@@ -102,7 +105,7 @@ function App() {
         <div className="header-content">
           <div>
             <h1>Slack Bots</h1>
-            <p>Provision Linux users with SSH keys and Slack channels</p>
+            <p>Create and manage Claude-powered Slack bots</p>
           </div>
           <div className="user-info">
             {user.picture && (
@@ -126,29 +129,23 @@ function App() {
       )}
 
       <div className="container">
-        <div>
-          <div className="card">
-            <h2>Create New User</h2>
-            <UserForm
-              onUserCreated={handleUserCreated}
-              onError={handleError}
-            />
-          </div>
-
-          <div className="card" style={{ marginTop: '1.5rem' }}>
-            <h2>SSH Key Generator</h2>
-            <KeyGenerator onError={handleError} />
-          </div>
+        <div className="card">
+          <h2>Create New Bot</h2>
+          <BotForm
+            onBotCreated={handleBotCreated}
+            onError={handleError}
+          />
         </div>
 
         <div className="card">
-          <h2>Created Users</h2>
+          <h2>Your Bots</h2>
           {loading ? (
             <div className="loading">Loading...</div>
           ) : (
-            <UserList
-              users={users}
-              onUserDeleted={handleUserDeleted}
+            <BotList
+              bots={bots}
+              onBotDeleted={handleBotDeleted}
+              onStatusChanged={handleBotStatusChanged}
               onError={handleError}
             />
           )}

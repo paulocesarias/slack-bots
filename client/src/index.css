@@ -399,3 +399,237 @@ button.danger:hover {
   color: #64748b;
   margin-bottom: 1rem;
 }
+
+/* Bot Form */
+.bot-form .form-group small {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.bot-form .form-group small code {
+  background: #334155;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  color: #a7f3d0;
+}
+
+.help-toggle {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 0.75rem;
+  padding: 0;
+  margin-left: 0.5rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.help-toggle:hover {
+  color: #60a5fa;
+  background: none;
+}
+
+.help-box {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.8rem;
+}
+
+.help-box h4 {
+  color: #f1f5f9;
+  margin-bottom: 0.75rem;
+}
+
+.help-box ol {
+  padding-left: 1.25rem;
+  color: #cbd5e1;
+}
+
+.help-box ol li {
+  margin-bottom: 0.5rem;
+}
+
+.help-box ul {
+  padding-left: 1rem;
+  margin-top: 0.25rem;
+}
+
+.help-box code {
+  background: #334155;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  color: #a7f3d0;
+  font-size: 0.75rem;
+}
+
+.help-box a {
+  color: #3b82f6;
+}
+
+.info-box {
+  background: #1e3a5f;
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+  font-size: 0.8rem;
+}
+
+.info-box h4 {
+  color: #93c5fd;
+  margin-bottom: 0.75rem;
+}
+
+.info-box ol {
+  padding-left: 1.25rem;
+  color: #bfdbfe;
+}
+
+.info-box ol li {
+  margin-bottom: 0.25rem;
+}
+
+.info-box code {
+  background: #1e293b;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  color: #a7f3d0;
+}
+
+.info-box p {
+  color: #93c5fd;
+  margin-top: 0.75rem;
+}
+
+/* Bot List */
+.bot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bot-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.bot-card.active {
+  border-color: #22c55e;
+}
+
+.bot-card.inactive {
+  border-color: #f59e0b;
+}
+
+.bot-card.created {
+  border-color: #3b82f6;
+}
+
+.bot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.bot-header h3 {
+  font-size: 1.1rem;
+  color: #f1f5f9;
+}
+
+.status-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.status-badge.active {
+  background: #166534;
+  color: #86efac;
+}
+
+.status-badge.inactive {
+  background: #854d0e;
+  color: #fde047;
+}
+
+.status-badge.created {
+  background: #1e40af;
+  color: #93c5fd;
+}
+
+.bot-details {
+  margin-bottom: 1rem;
+}
+
+.bot-details .detail {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.bot-details .detail label {
+  color: #64748b;
+  min-width: 80px;
+}
+
+.bot-details .detail span,
+.bot-details .detail code {
+  color: #cbd5e1;
+}
+
+.bot-details .detail code {
+  background: #334155;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+}
+
+.bot-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.bot-actions .button,
+.bot-actions button {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+}
+
+.bot-actions .button.secondary {
+  background: #475569;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.bot-actions .button.secondary:hover {
+  background: #64748b;
+}
+
+button.success {
+  background: #16a34a;
+}
+
+button.success:hover {
+  background: #15803d;
+}
+
+button.warning {
+  background: #d97706;
+}
+
+button.warning:hover {
+  background: #b45309;
+}

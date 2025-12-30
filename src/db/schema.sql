@@ -13,3 +13,16 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS bots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT UNIQUE NOT NULL,
+  username TEXT NOT NULL,
+  description TEXT,
+  ssh_credential_id TEXT,
+  slack_credential_id TEXT,
+  workflow_id TEXT,
+  status TEXT DEFAULT 'created',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

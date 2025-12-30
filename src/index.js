@@ -9,6 +9,7 @@ const { isAuthenticated } = require('./auth/middleware');
 const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const keysRouter = require('./routes/keys');
+const botsRouter = require('./routes/bots');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,6 +56,7 @@ app.use('/auth', authRouter);
 // Protected API routes
 app.use('/api/users', isAuthenticated, usersRouter);
 app.use('/api/keys', isAuthenticated, keysRouter);
+app.use('/api/bots', isAuthenticated, botsRouter);
 
 // Serve static files from React build
 app.use(express.static(path.join(__dirname, '../client/dist')));
