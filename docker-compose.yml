@@ -16,7 +16,7 @@ services:
       - GOOGLE_CALLBACK_URL=https://slackbots.headbangtech.com/auth/google/callback
       - ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
       - ALLOWED_DOMAINS=${ALLOWED_DOMAINS:-}
-      - N8N_API_ENDPOINT=${N8N_API_ENDPOINT}
+      - N8N_API_ENDPOINT=https://n8n.headbangtech.com/api/v1
       - N8N_API_KEY=${N8N_API_KEY}
       - N8N_TEMPLATE_WORKFLOW_ID=${N8N_TEMPLATE_WORKFLOW_ID:-JTlX2bfBh6O4HcAR}
       - SSH_HOST=${SSH_HOST:-72.61.78.57}

@@ -17,7 +17,15 @@ async function apiRequest(method, endpoint, body = null) {
   }
 
   const response = await fetch(`${N8N_API_ENDPOINT}${endpoint}`, options);
-  const data = await response.json();
+
+  // Handle non-JSON responses (like Bad Gateway)
+  const text = await response.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`n8n API error: ${response.status} - ${text.substring(0, 100)}`);
+  }
 
   if (!response.ok) {
     throw new Error(data.message || `n8n API error: ${response.status}`);
@@ -101,7 +109,6 @@ async function createWorkflow(name, username, sshCredentialId, sshCredentialName
     connections: template.connections,
     settings: template.settings,
     staticData: null,
-    active: false, // Start inactive, user can activate after testing
   };
 
   return apiRequest('POST', '/workflows', newWorkflow);
