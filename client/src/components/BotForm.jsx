@@ -30,16 +30,17 @@ function BotForm({ onBotCreated, onError }) {
         scopes: {
           bot: [
             "app_mentions:read",
+            "assistant:write",
             "channels:history",
             "channels:manage",
             "channels:read",
             "chat:write",
+            "files:read",
             "groups:history",
             "groups:read",
             "im:history",
             "im:read",
-            "im:write",
-            "files:read"
+            "im:write"
           ]
         }
       },
@@ -48,6 +49,8 @@ function BotForm({ onBotCreated, onError }) {
           request_url: "https://n8n.headbangtech.com/webhook/WORKFLOW-UUID/webhook",
           bot_events: [
             "app_mention",
+            "message.channels",
+            "message.groups",
             "message.im"
           ]
         },
