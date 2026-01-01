@@ -26,7 +26,8 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install runtime dependencies for user management
-RUN apk add --no-cache shadow
+# bash is needed because useradd validates the shell exists
+RUN apk add --no-cache shadow bash
 
 # Copy backend dependencies
 COPY --from=backend-builder /app/node_modules ./node_modules
