@@ -47,6 +47,7 @@ async function createSlackCredential(name, accessToken) {
     type: 'slackApi',
     data: {
       accessToken: accessToken,
+      signatureSecret: 'not-used', // Required by n8n schema but not used for bot tokens
     },
   });
 }
