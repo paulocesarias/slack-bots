@@ -104,6 +104,10 @@ function addAuthorizedKey(username, sshPublicKey) {
     throw new Error(validation.error);
   }
 
+  if (!sshPublicKey || typeof sshPublicKey !== 'string') {
+    throw new Error('SSH public key is required');
+  }
+
   if (!userExists(username)) {
     throw new Error(`User ${username} does not exist`);
   }
