@@ -1,7 +1,7 @@
 const N8N_API_ENDPOINT = process.env.N8N_API_ENDPOINT || 'https://n8n.headbangtech.com/api/v1';
 const N8N_API_KEY = process.env.N8N_API_KEY;
 const SSH_HOST = process.env.SSH_HOST || '72.61.78.57';
-const SSH_PORT = parseInt(process.env.SSH_PORT || '22');
+const SSH_PORT = parseInt(process.env.SSH_PORT || '28473');
 
 async function apiRequest(method, endpoint, body = null, retries = 3) {
   const options = {
