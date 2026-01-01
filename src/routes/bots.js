@@ -110,7 +110,7 @@ router.post('/', async (req, res) => {
       }
       keypair = { publicKey: sshPublicKey.trim(), privateKey: null };
     } else {
-      keypair = sshService.generateKeyPair();
+      keypair = await sshService.generateKeyPair();
     }
 
     // Step 4: Create Linux user
