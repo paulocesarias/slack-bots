@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS bots (
   description TEXT,
   ssh_credential_id TEXT,
   slack_credential_id TEXT,
+  slack_credential_shared INTEGER DEFAULT 0,
   workflow_id TEXT,
   slack_channel_id TEXT,
   slack_channel_name TEXT,

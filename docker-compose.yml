@@ -13,7 +13,7 @@ services:
       - SESSION_DIR=/app/data
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_CALLBACK_URL=https://slackbots.headbangtech.cloud/auth/google/callback
+      - GOOGLE_CALLBACK_URL=https://slackbots.headbangtech.com/auth/google/callback
       - ALLOWED_EMAILS=${ALLOWED_EMAILS:-}
       - ALLOWED_DOMAINS=${ALLOWED_DOMAINS:-}
       - N8N_API_ENDPOINT=${N8N_API_ENDPOINT}
@@ -33,7 +33,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=n8n-workflows_default
-      - traefik.http.routers.slackbots.rule=Host(`slackbots.headbangtech.cloud`)
+      - traefik.http.routers.slackbots.rule=Host(`slackbots.headbangtech.com`)
       - traefik.http.routers.slackbots.tls=true
       - traefik.http.routers.slackbots.entrypoints=web,websecure
       - traefik.http.routers.slackbots.tls.certresolver=mytlschallenge

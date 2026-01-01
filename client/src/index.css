@@ -722,3 +722,73 @@ button.warning {
 button.warning:hover {
   background: #b45309;
 }
+
+/* Slack Mode Toggle */
+.slack-mode-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.slack-mode-toggle .mode-btn {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  background: #0f172a;
+  border: none;
+  border-radius: 0;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.slack-mode-toggle .mode-btn:first-child {
+  border-right: 1px solid #475569;
+}
+
+.slack-mode-toggle .mode-btn:hover {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.slack-mode-toggle .mode-btn.active {
+  background: #3b82f6;
+  color: white;
+}
+
+.slack-mode-toggle .mode-btn.active:hover {
+  background: #2563eb;
+}
+
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.form-group select option {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
+.loading-text,
+.no-creds-text {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  padding: 0.75rem;
+  background: #0f172a;
+  border: 1px dashed #475569;
+  border-radius: 8px;
+}

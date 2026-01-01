@@ -1,16 +1,37 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function BotForm({ onBotCreated, onError }) {
   const [name, setName] = useState('')
+  const [slackTokenMode, setSlackTokenMode] = useState('new') // 'new' or 'existing'
   const [slackToken, setSlackToken] = useState('')
+  const [existingSlackCredId, setExistingSlackCredId] = useState('')
+  const [existingSlackCreds, setExistingSlackCreds] = useState([])
   const [channelName, setChannelName] = useState('')
   const [customUsername, setCustomUsername] = useState('')
   const [sshPublicKey, setSshPublicKey] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingCreds, setLoadingCreds] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Fetch existing Slack credentials when mode changes to 'existing'
+  useEffect(() => {
+    if (slackTokenMode === 'existing' && existingSlackCreds.length === 0) {
+      setLoadingCreds(true)
+      fetch('/api/bots/slack-credentials')
+        .then(res => res.json())
+        .then(data => {
+          setExistingSlackCreds(data)
+          if (data.length > 0) {
+            setExistingSlackCredId(data[0].id)
+          }
+        })
+        .catch(err => onError('Failed to load Slack credentials'))
+        .finally(() => setLoadingCreds(false))
+    }
+  }, [slackTokenMode])
 
   const defaultUsername = `paulo-${name.toLowerCase() || 'name'}`
   const effectiveUsername = customUsername || defaultUsername
@@ -72,17 +93,25 @@ function BotForm({ onBotCreated, onError }) {
     setLoading(true)
 
     try {
+      const payload = {
+        name,
+        channelName: channelName || undefined,
+        customUsername: customUsername || undefined,
+        sshPublicKey: sshPublicKey || undefined,
+        description
+      }
+
+      // Add Slack credential based on mode
+      if (slackTokenMode === 'new') {
+        payload.slackToken = slackToken
+      } else {
+        payload.existingSlackCredId = existingSlackCredId
+      }
+
       const res = await fetch('/api/bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          slackToken,
-          channelName: channelName || undefined,
-          customUsername: customUsername || undefined,
-          sshPublicKey: sshPublicKey || undefined,
-          description
-        })
+        body: JSON.stringify(payload)
       })
 
       const data = await res.json()
@@ -125,25 +154,70 @@ function BotForm({ onBotCreated, onError }) {
         </div>
 
         <div className="form-group">
-          <label htmlFor="slackToken">
-            Slack Bot OAuth Token
+          <label>Slack Credential</label>
+          <div className="slack-mode-toggle">
             <button
               type="button"
-              className="help-toggle"
-              onClick={() => setShowHelp(!showHelp)}
+              className={`mode-btn ${slackTokenMode === 'new' ? 'active' : ''}`}
+              onClick={() => setSlackTokenMode('new')}
             >
-              {showHelp ? 'Hide help' : 'How to create Slack App?'}
+              New Token
             </button>
-          </label>
-          <input
-            id="slackToken"
-            type="password"
-            value={slackToken}
-            onChange={(e) => setSlackToken(e.target.value)}
-            placeholder="xoxb-..."
-            required
-          />
+            <button
+              type="button"
+              className={`mode-btn ${slackTokenMode === 'existing' ? 'active' : ''}`}
+              onClick={() => setSlackTokenMode('existing')}
+            >
+              Use Existing
+            </button>
+          </div>
         </div>
+
+        {slackTokenMode === 'new' ? (
+          <div className="form-group">
+            <label htmlFor="slackToken">
+              Slack Bot OAuth Token
+              <button
+                type="button"
+                className="help-toggle"
+                onClick={() => setShowHelp(!showHelp)}
+              >
+                {showHelp ? 'Hide help' : 'How to create Slack App?'}
+              </button>
+            </label>
+            <input
+              id="slackToken"
+              type="password"
+              value={slackToken}
+              onChange={(e) => setSlackToken(e.target.value)}
+              placeholder="xoxb-..."
+              required
+            />
+          </div>
+        ) : (
+          <div className="form-group">
+            <label htmlFor="existingSlackCred">Select Existing Slack Credential</label>
+            {loadingCreds ? (
+              <p className="loading-text">Loading credentials...</p>
+            ) : existingSlackCreds.length === 0 ? (
+              <p className="no-creds-text">No existing Slack credentials found. Create a new token first.</p>
+            ) : (
+              <select
+                id="existingSlackCred"
+                value={existingSlackCredId}
+                onChange={(e) => setExistingSlackCredId(e.target.value)}
+                required
+              >
+                {existingSlackCreds.map(cred => (
+                  <option key={cred.id} value={cred.id}>
+                    {cred.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <small>Reuse an existing Slack App credential for this bot</small>
+          </div>
+        )}
 
         {showHelp && (
           <div className="help-box">
@@ -245,11 +319,17 @@ function BotForm({ onBotCreated, onError }) {
       <div className="info-box">
         <h4>What happens when you create a bot:</h4>
         <ol>
-          <li>Slack token is validated</li>
-          <li>Slack channel <code>#{channelName || `claude-bot-${name.toLowerCase() || 'name'}`}</code> is created</li>
+          {slackTokenMode === 'new' ? (
+            <>
+              <li>Slack token is validated</li>
+              <li>Slack channel <code>#{channelName || `claude-bot-${name.toLowerCase() || 'name'}`}</code> is created</li>
+            </>
+          ) : (
+            <li>Existing Slack credential is used (channel creation skipped)</li>
+          )}
           <li>Linux user <code>{effectiveUsername}</code> is created</li>
           <li>{sshPublicKey ? 'Your SSH public key is added' : 'SSH keypair is generated'} for n8n access</li>
-          <li>n8n credentials (SSH + Slack) are created</li>
+          <li>n8n credentials (SSH {slackTokenMode === 'new' ? '+ Slack ' : ''}are created</li>
           <li>Workflow is cloned from template</li>
         </ol>
         <p>After creation, open the workflow in n8n to test and activate it.</p>

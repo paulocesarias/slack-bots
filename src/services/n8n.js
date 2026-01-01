@@ -126,6 +126,17 @@ async function deleteWorkflow(workflowId) {
   return apiRequest('DELETE', `/workflows/${workflowId}`);
 }
 
+// List all credentials
+async function listCredentials() {
+  return apiRequest('GET', '/credentials');
+}
+
+// Get Slack credentials only
+async function getSlackCredentials() {
+  const allCredentials = await listCredentials();
+  return allCredentials.data.filter(cred => cred.type === 'slackApi');
+}
+
 // Helper to generate UUID
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -144,4 +155,6 @@ module.exports = {
   deleteCredential,
   deleteWorkflow,
   getWorkflow,
+  listCredentials,
+  getSlackCredentials,
 };
