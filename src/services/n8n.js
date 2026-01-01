@@ -3,7 +3,7 @@ const N8N_API_KEY = process.env.N8N_API_KEY;
 const SSH_HOST = process.env.SSH_HOST || '72.61.78.57';
 const SSH_PORT = parseInt(process.env.SSH_PORT || '22');
 
-async function apiRequest(method, endpoint, body = null) {
+async function apiRequest(method, endpoint, body = null, retries = 3) {
   const options = {
     method,
     headers: {
@@ -16,22 +16,42 @@ async function apiRequest(method, endpoint, body = null) {
     options.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${N8N_API_ENDPOINT}${endpoint}`, options);
+  let lastError;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(`${N8N_API_ENDPOINT}${endpoint}`, options);
 
-  // Handle non-JSON responses (like Bad Gateway)
-  const text = await response.text();
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch (e) {
-    throw new Error(`n8n API error: ${response.status} - ${text.substring(0, 100)}`);
+      // Handle non-JSON responses (like Bad Gateway)
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        // If it's a 502/503/504, retry
+        if (response.status >= 500 && attempt < retries) {
+          console.log(`n8n API error ${response.status}, retrying (${attempt}/${retries})...`);
+          await new Promise(r => setTimeout(r, 1000 * attempt)); // exponential backoff
+          continue;
+        }
+        throw new Error(`n8n API error: ${response.status} - ${text.substring(0, 100)}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || `n8n API error: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries && error.message.includes('n8n API error: 5')) {
+        console.log(`n8n API error, retrying (${attempt}/${retries})...`);
+        await new Promise(r => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+      throw error;
+    }
   }
-
-  if (!response.ok) {
-    throw new Error(data.message || `n8n API error: ${response.status}`);
-  }
-
-  return data;
+  throw lastError;
 }
 
 // Create SSH Private Key credential
