@@ -17,13 +17,25 @@ db.exec(schema);
 
 // Run migrations for existing databases
 function runMigrations() {
-  // Check if slack_credential_shared column exists
   const tableInfo = db.prepare("PRAGMA table_info(bots)").all();
-  const hasSharedColumn = tableInfo.some(col => col.name === 'slack_credential_shared');
+  const columnNames = tableInfo.map(col => col.name);
 
-  if (!hasSharedColumn) {
+  // Check if slack_credential_shared column exists
+  if (!columnNames.includes('slack_credential_shared')) {
     console.log('Migrating: Adding slack_credential_shared column to bots table');
     db.exec('ALTER TABLE bots ADD COLUMN slack_credential_shared INTEGER DEFAULT 0');
+  }
+
+  // Check if slack_channel_id column exists
+  if (!columnNames.includes('slack_channel_id')) {
+    console.log('Migrating: Adding slack_channel_id column to bots table');
+    db.exec('ALTER TABLE bots ADD COLUMN slack_channel_id TEXT');
+  }
+
+  // Check if slack_channel_name column exists
+  if (!columnNames.includes('slack_channel_name')) {
+    console.log('Migrating: Adding slack_channel_name column to bots table');
+    db.exec('ALTER TABLE bots ADD COLUMN slack_channel_name TEXT');
   }
 }
 

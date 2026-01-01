@@ -18,29 +18,6 @@ router.get('/', (req, res) => {
   }
 });
 
-// Get existing Slack credentials from our database (bots that have non-shared credentials)
-router.get('/slack-credentials', (req, res) => {
-  try {
-    // Get unique Slack credentials from bots table
-    const credentials = db.prepare(`
-      SELECT DISTINCT slack_credential_id as id, name as bot_name
-      FROM bots
-      WHERE slack_credential_id IS NOT NULL
-      ORDER BY created_at DESC
-    `).all();
-
-    // Format for frontend
-    const formatted = credentials.map(c => ({
-      id: c.id,
-      name: `Slack - ${c.bot_name}`
-    }));
-
-    res.json(formatted);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Get a single bot
 router.get('/:id', (req, res) => {
   try {
@@ -58,8 +35,7 @@ router.get('/:id', (req, res) => {
 router.post('/', async (req, res) => {
   const {
     name,                  // Bot name (e.g., "BL", "TP")
-    slackToken,            // Slack Bot OAuth Token (required if not using existing credential)
-    existingSlackCredId,   // Optional: Existing n8n Slack credential ID to reuse
+    slackToken,            // Slack Bot OAuth Token (required)
     channelName,           // Optional: Slack channel name to create
     customUsername,        // Optional: Custom Linux username
     sshPublicKey,          // Optional: User-provided SSH public key
@@ -70,8 +46,8 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'name is required' });
   }
 
-  if (!slackToken && !existingSlackCredId) {
-    return res.status(400).json({ error: 'Either slackToken or existingSlackCredId is required' });
+  if (!slackToken) {
+    return res.status(400).json({ error: 'slackToken is required' });
   }
 
   // Validate name format (alphanumeric, lowercase)
@@ -98,20 +74,18 @@ router.post('/', async (req, res) => {
   let keypair = null;
 
   try {
-    // Step 1: Validate Slack token (only if new token provided)
-    if (slackToken) {
-      const tokenValidation = await slackService.validateToken(slackToken);
-      if (!tokenValidation.valid) {
-        throw new Error(`Invalid Slack token: ${tokenValidation.error}`);
-      }
+    // Step 1: Validate Slack token
+    const tokenValidation = await slackService.validateToken(slackToken);
+    if (!tokenValidation.valid) {
+      throw new Error(`Invalid Slack token: ${tokenValidation.error}`);
+    }
 
-      // Step 2: Create Slack channel (only if new token provided)
-      try {
-        slackChannel = await slackService.createChannel(slackToken, defaultChannelName);
-      } catch (channelError) {
-        // Channel creation might fail due to missing scopes, continue anyway
-        console.warn('Could not create Slack channel:', channelError.message);
-      }
+    // Step 2: Create Slack channel
+    try {
+      slackChannel = await slackService.createChannel(slackToken, defaultChannelName);
+    } catch (channelError) {
+      // Channel creation might fail due to missing scopes, continue anyway
+      console.warn('Could not create Slack channel:', channelError.message);
     }
 
     // Step 3: Generate SSH keypair or use provided public key
@@ -150,24 +124,11 @@ router.post('/', async (req, res) => {
       console.log(`User provided SSH public key for ${username} - n8n SSH credential must be configured manually`);
     }
 
-    // Step 6: Create n8n Slack credential OR use existing one
-    let usingExistingSlackCred = false;
-    if (existingSlackCredId) {
-      // Use existing credential - validate it exists in n8n
-      try {
-        const existingCred = await n8nService.getCredential(existingSlackCredId);
-        slackCredential = { id: existingSlackCredId, name: existingCred.name };
-        usingExistingSlackCred = true;
-      } catch (e) {
-        throw new Error('Existing Slack credential not found in n8n');
-      }
-    } else {
-      // Create new credential
-      slackCredential = await n8nService.createSlackCredential(
-        botDisplayName,
-        slackToken
-      );
-    }
+    // Step 6: Create n8n Slack credential
+    slackCredential = await n8nService.createSlackCredential(
+      botDisplayName,
+      slackToken
+    );
 
     // Step 7: Create n8n workflow from template
     workflow = await n8nService.createWorkflow(
@@ -176,13 +137,15 @@ router.post('/', async (req, res) => {
       sshCredential?.id || null,
       sshCredential?.name || `SSH - ${botDisplayName} (manual)`,
       slackCredential.id,
-      slackCredential.name
+      slackCredential.name,
+      slackChannel?.channel?.id || null,
+      slackChannel?.channel?.name || null
     );
 
     // Step 8: Save bot to database
     const stmt = db.prepare(`
-      INSERT INTO bots (name, username, description, ssh_credential_id, slack_credential_id, slack_credential_shared, workflow_id, slack_channel_id, slack_channel_name, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'created')
+      INSERT INTO bots (name, username, description, ssh_credential_id, slack_credential_id, workflow_id, slack_channel_id, slack_channel_name, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created')
     `);
     const result = stmt.run(
       botDisplayName,
@@ -190,7 +153,6 @@ router.post('/', async (req, res) => {
       description || null,
       sshCredential?.id || null,
       slackCredential.id,
-      usingExistingSlackCred ? 1 : 0,
       workflow.id,
       slackChannel?.channel?.id || null,
       slackChannel?.channel?.name || null
@@ -200,9 +162,6 @@ router.post('/', async (req, res) => {
     messageparts.push('Bot created successfully!');
     if (slackChannel) {
       messageparts.push(`Channel #${slackChannel.channel.name} was ${slackChannel.existed ? 'found' : 'created'}.`);
-    }
-    if (usingExistingSlackCred) {
-      messageparts.push(`Using shared Slack credential "${slackCredential.name}".`);
     }
     if (!keypair.privateKey) {
       messageparts.push('You provided your own SSH key - configure the n8n SSH credential manually.');
@@ -220,7 +179,6 @@ router.post('/', async (req, res) => {
         slack_channel: slackChannel?.channel || null,
         status: 'created',
         ssh_key_provided: !!sshPublicKey,
-        using_shared_slack_cred: usingExistingSlackCred,
       },
       message: messageparts.join(' '),
     });
@@ -237,8 +195,7 @@ router.post('/', async (req, res) => {
         console.error('Failed to delete workflow:', e);
       }
     }
-    // Only delete Slack credential if we created it (not shared)
-    if (slackCredential && !usingExistingSlackCred) {
+    if (slackCredential) {
       try {
         await n8nService.deleteCredential(slackCredential.id);
       } catch (e) {
@@ -313,8 +270,8 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    // Delete Slack credential (only if not shared)
-    if (bot.slack_credential_id && !bot.slack_credential_shared) {
+    // Delete Slack credential
+    if (bot.slack_credential_id) {
       try {
         await n8nService.deleteCredential(bot.slack_credential_id);
       } catch (e) {

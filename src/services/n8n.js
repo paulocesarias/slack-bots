@@ -75,7 +75,8 @@ async function createSlackCredential(name, accessToken) {
     type: 'slackApi',
     data: {
       accessToken: accessToken,
-      signatureSecret: 'not-used', // Required by n8n schema but not used for bot tokens
+      signatureSecret: '',
+      notice: '',
     },
   });
 }
@@ -86,7 +87,7 @@ async function getWorkflow(workflowId) {
 }
 
 // Create a new workflow based on template
-async function createWorkflow(name, username, sshCredentialId, sshCredentialName, slackCredentialId, slackCredentialName) {
+async function createWorkflow(name, username, sshCredentialId, sshCredentialName, slackCredentialId, slackCredentialName, slackChannelId, slackChannelName) {
   // Get template workflow (Slack Bot TP)
   const templateId = process.env.N8N_TEMPLATE_WORKFLOW_ID || 'JTlX2bfBh6O4HcAR';
   const template = await getWorkflow(templateId);
@@ -111,7 +112,7 @@ async function createWorkflow(name, username, sshCredentialId, sshCredentialName
         };
       }
 
-      // Update Slack nodes
+      // Update Slack nodes (send message)
       if (node.type === 'n8n-nodes-base.slack') {
         newNode.credentials = {
           slackApi: {
@@ -119,6 +120,27 @@ async function createWorkflow(name, username, sshCredentialId, sshCredentialName
             name: slackCredentialName,
           },
         };
+      }
+
+      // Update Slack Trigger node with channel ID and new webhook ID
+      if (node.type === 'n8n-nodes-base.slackTrigger') {
+        newNode.parameters = {
+          ...node.parameters,
+          channelId: {
+            __rl: true,
+            value: slackChannelId || 'CONFIGURE_ME',
+            mode: slackChannelId ? 'id' : 'list',
+            cachedResultName: slackChannelName || 'Select a channel',
+          },
+        };
+        newNode.credentials = {
+          slackApi: {
+            id: slackCredentialId,
+            name: slackCredentialName,
+          },
+        };
+        // Generate new webhook ID so each workflow has a unique webhook URL
+        newNode.webhookId = generateUUID();
       }
 
       // Generate new IDs for nodes
@@ -136,12 +158,12 @@ async function createWorkflow(name, username, sshCredentialId, sshCredentialName
 
 // Activate a workflow
 async function activateWorkflow(workflowId) {
-  return apiRequest('PATCH', `/workflows/${workflowId}`, { active: true });
+  return apiRequest('POST', `/workflows/${workflowId}/activate`);
 }
 
 // Deactivate a workflow
 async function deactivateWorkflow(workflowId) {
-  return apiRequest('PATCH', `/workflows/${workflowId}`, { active: false });
+  return apiRequest('POST', `/workflows/${workflowId}/deactivate`);
 }
 
 // Delete credential
