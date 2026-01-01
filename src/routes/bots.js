@@ -18,11 +18,24 @@ router.get('/', (req, res) => {
   }
 });
 
-// Get existing Slack credentials from n8n
-router.get('/slack-credentials', async (req, res) => {
+// Get existing Slack credentials from our database (bots that have non-shared credentials)
+router.get('/slack-credentials', (req, res) => {
   try {
-    const credentials = await n8nService.getSlackCredentials();
-    res.json(credentials);
+    // Get unique Slack credentials from bots table
+    const credentials = db.prepare(`
+      SELECT DISTINCT slack_credential_id as id, name as bot_name
+      FROM bots
+      WHERE slack_credential_id IS NOT NULL
+      ORDER BY created_at DESC
+    `).all();
+
+    // Format for frontend
+    const formatted = credentials.map(c => ({
+      id: c.id,
+      name: `Slack - ${c.bot_name}`
+    }));
+
+    res.json(formatted);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -140,14 +153,14 @@ router.post('/', async (req, res) => {
     // Step 6: Create n8n Slack credential OR use existing one
     let usingExistingSlackCred = false;
     if (existingSlackCredId) {
-      // Use existing credential
-      const existingCreds = await n8nService.getSlackCredentials();
-      const existingCred = existingCreds.find(c => c.id === existingSlackCredId);
-      if (!existingCred) {
-        throw new Error('Existing Slack credential not found');
+      // Use existing credential - validate it exists in n8n
+      try {
+        const existingCred = await n8nService.getCredential(existingSlackCredId);
+        slackCredential = { id: existingSlackCredId, name: existingCred.name };
+        usingExistingSlackCred = true;
+      } catch (e) {
+        throw new Error('Existing Slack credential not found in n8n');
       }
-      slackCredential = existingCred;
-      usingExistingSlackCred = true;
     } else {
       // Create new credential
       slackCredential = await n8nService.createSlackCredential(
