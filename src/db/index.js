@@ -37,6 +37,12 @@ function runMigrations() {
     console.log('Migrating: Adding slack_channel_name column to bots table');
     db.exec('ALTER TABLE bots ADD COLUMN slack_channel_name TEXT');
   }
+
+  // Check if cli_tool column exists
+  if (!columnNames.includes('cli_tool')) {
+    console.log('Migrating: Adding cli_tool column to bots table');
+    db.exec("ALTER TABLE bots ADD COLUMN cli_tool TEXT DEFAULT 'claude'");
+  }
 }
 
 runMigrations();

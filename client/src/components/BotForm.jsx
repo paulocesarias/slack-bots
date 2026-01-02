@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function BotForm({ onBotCreated, onError }) {
   const [name, setName] = useState('')
@@ -7,10 +7,20 @@ function BotForm({ onBotCreated, onError }) {
   const [customUsername, setCustomUsername] = useState('')
   const [sshPublicKey, setSshPublicKey] = useState('')
   const [description, setDescription] = useState('')
+  const [cliTool, setCliTool] = useState('claude')
+  const [cliTools, setCliTools] = useState([])
   const [loading, setLoading] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Fetch available CLI tools on mount
+  useEffect(() => {
+    fetch('/api/bots/cli-tools')
+      .then(res => res.json())
+      .then(data => setCliTools(data))
+      .catch(err => console.error('Failed to fetch CLI tools:', err))
+  }, [])
 
   const defaultUsername = `paulo-${name.toLowerCase() || 'name'}`
   const effectiveUsername = customUsername || defaultUsername
@@ -82,7 +92,8 @@ function BotForm({ onBotCreated, onError }) {
         channelName: channelName || undefined,
         customUsername: customUsername || undefined,
         sshPublicKey: sshPublicKey || undefined,
-        description
+        description,
+        cliTool
       }
 
       const res = await fetch('/api/bots', {
@@ -104,6 +115,7 @@ function BotForm({ onBotCreated, onError }) {
       setCustomUsername('')
       setSshPublicKey('')
       setDescription('')
+      setCliTool('claude')
       setShowAdvanced(false)
     } catch (error) {
       onError(error.message)
@@ -128,6 +140,20 @@ function BotForm({ onBotCreated, onError }) {
             title="Only letters and numbers allowed"
           />
           <small>Used for naming credentials and workflow in n8n</small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="cliTool">CLI Tool</label>
+          <select
+            id="cliTool"
+            value={cliTool}
+            onChange={(e) => setCliTool(e.target.value)}
+          >
+            {cliTools.map(tool => (
+              <option key={tool.id} value={tool.id}>{tool.name}</option>
+            ))}
+          </select>
+          <small>The AI coding assistant to use via SSH</small>
         </div>
 
         <div className="form-group">
@@ -257,7 +283,7 @@ function BotForm({ onBotCreated, onError }) {
           <li>Linux user <code>{effectiveUsername}</code> is created</li>
           <li>{sshPublicKey ? 'Your SSH public key is added' : 'SSH keypair is generated'} for n8n access</li>
           <li>n8n credentials (SSH + Slack) are created</li>
-          <li>Workflow is cloned from template</li>
+          <li>Workflow is cloned from template with <strong>{cliTools.find(t => t.id === cliTool)?.name || cliTool}</strong> configured</li>
         </ol>
         <p>After creation, open the workflow in n8n to test and activate it.</p>
       </div>

@@ -1,15 +1,26 @@
-# Slack Bots - Claude Bot Provisioning
+# Slack Bots - AI Coding Assistant Provisioning
 
-Web application for automating the creation of Claude-powered Slack bots with full n8n workflow integration.
+Web application for automating the creation of AI coding assistant Slack bots with full n8n workflow integration.
 
 ## Features
 
-- **Automated Bot Provisioning**: Create complete Claude Slack bots with one click
+- **Automated Bot Provisioning**: Create complete AI assistant Slack bots with one click
+- **Multiple CLI Tools**: Support for Claude Code, Codex CLI, Gemini CLI, Grok CLI, and Aider
 - **Linux User Management**: Creates isolated Linux users on the host system
 - **SSH Key Generation**: Auto-generates SSH keypairs or accepts existing public keys
 - **n8n Integration**: Creates credentials and clones workflow from template
 - **Slack Integration**: Validates tokens and creates channels automatically
 - **Google SSO**: Secure access with email/domain whitelisting
+
+## Supported CLI Tools
+
+| Tool | Description |
+|------|-------------|
+| **Claude Code** | Anthropic's Claude-powered coding assistant |
+| **Codex CLI** | OpenAI's Codex-based CLI tool |
+| **Gemini CLI** | Google's Gemini-powered coding assistant |
+| **Grok CLI** | xAI's Grok-powered coding assistant |
+| **Aider** | AI pair programming tool |
 
 ## How It Works
 
@@ -143,9 +154,10 @@ The app is deployed at https://slackbots.headbangtech.com
 - `POST /auth/logout` - Logout
 
 ### Protected (requires authentication)
+- `GET /api/bots/cli-tools` - Get available CLI tools
 - `GET /api/bots` - List all bots
 - `GET /api/bots/:id` - Get bot details
-- `POST /api/bots` - Create a new bot
+- `POST /api/bots` - Create a new bot (accepts `cliTool` parameter: claude, codex, gemini, grok, aider)
 - `POST /api/bots/:id/activate` - Activate bot workflow
 - `POST /api/bots/:id/deactivate` - Deactivate bot workflow
 - `DELETE /api/bots/:id` - Delete bot and cleanup resources

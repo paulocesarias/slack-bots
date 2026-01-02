@@ -792,3 +792,102 @@ button.warning:hover {
   border: 1px dashed #475569;
   border-radius: 8px;
 }
+
+/* Modal for SSH Key Display */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal h3 {
+  color: #f1f5f9;
+  margin-bottom: 0.75rem;
+}
+
+.modal .warning-text {
+  background: #7f1d1d;
+  border: 1px solid #dc2626;
+  color: #fecaca;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.ssh-key-container {
+  margin-bottom: 1rem;
+}
+
+.ssh-key-container label {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.ssh-key-container textarea {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  color: #a7f3d0;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 0.7rem;
+  padding: 0.75rem;
+  resize: vertical;
+  cursor: text;
+}
+
+.ssh-key-container button {
+  margin-top: 0.5rem;
+}
+
+.modal-info {
+  background: #0f172a;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+.modal-info p {
+  margin-bottom: 0.25rem;
+  color: #cbd5e1;
+}
+
+.modal-info code {
+  background: #334155;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  color: #a7f3d0;
+}
+
+.modal-info a {
+  color: #3b82f6;
+}
+
+.modal button.primary {
+  width: 100%;
+  padding: 0.875rem;
+  font-size: 0.9rem;
+}

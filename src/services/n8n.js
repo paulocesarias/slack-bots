@@ -3,6 +3,33 @@ const N8N_API_KEY = process.env.N8N_API_KEY;
 const SSH_HOST = process.env.SSH_HOST || '72.61.78.57';
 const SSH_PORT = parseInt(process.env.SSH_PORT || '28473');
 
+// CLI tool configurations
+// Each tool has a command template that uses n8n expression syntax:
+// - {{ $json.encodedMessage }} - base64-encoded message from Slack
+// - {{ $json.sessionId }} - unique session ID for conversation context
+const CLI_TOOLS = {
+  claude: {
+    name: 'Claude Code',
+    command: `bash -i -l -c "claude -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\" --session-id {{ $json.sessionId }} --dangerously-skip-permissions" || bash -i -l -c "claude -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\" -r {{ $json.sessionId }} --dangerously-skip-permissions"`,
+  },
+  codex: {
+    name: 'Codex CLI',
+    command: `bash -i -l -c "codex exec -q \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\""`,
+  },
+  gemini: {
+    name: 'Gemini CLI',
+    command: `bash -i -l -c "gemini -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\""`,
+  },
+  grok: {
+    name: 'Grok CLI',
+    command: `bash -i -l -c "grok -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\""`,
+  },
+  aider: {
+    name: 'Aider',
+    command: `bash -i -l -c "aider --message \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\" --yes"`,
+  },
+};
+
 async function apiRequest(method, endpoint, body = null, retries = 3) {
   const options = {
     method,
@@ -87,10 +114,13 @@ async function getWorkflow(workflowId) {
 }
 
 // Create a new workflow based on template
-async function createWorkflow(name, username, sshCredentialId, sshCredentialName, slackCredentialId, slackCredentialName, slackChannelId, slackChannelName) {
+async function createWorkflow(name, username, sshCredentialId, sshCredentialName, slackCredentialId, slackCredentialName, slackChannelId, slackChannelName, cliTool = 'claude') {
   // Get template workflow (Slack Bot TP)
   const templateId = process.env.N8N_TEMPLATE_WORKFLOW_ID || 'JTlX2bfBh6O4HcAR';
   const template = await getWorkflow(templateId);
+
+  // Get the CLI tool configuration
+  const toolConfig = CLI_TOOLS[cliTool] || CLI_TOOLS.claude;
 
   // Clone and modify the workflow
   const newWorkflow = {
@@ -103,6 +133,7 @@ async function createWorkflow(name, username, sshCredentialId, sshCredentialName
         newNode.parameters = {
           ...node.parameters,
           cwd: `/home/${username}`,
+          command: `=${toolConfig.command}`,
         };
         newNode.credentials = {
           sshPrivateKey: {
@@ -190,6 +221,14 @@ function generateUUID() {
   });
 }
 
+// Get available CLI tools
+function getAvailableCliTools() {
+  return Object.entries(CLI_TOOLS).map(([key, value]) => ({
+    id: key,
+    name: value.name,
+  }));
+}
+
 module.exports = {
   createSSHCredential,
   createSlackCredential,
@@ -200,4 +239,6 @@ module.exports = {
   deleteWorkflow,
   getWorkflow,
   getCredential,
+  getAvailableCliTools,
+  CLI_TOOLS,
 };

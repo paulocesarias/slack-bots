@@ -6,6 +6,11 @@ const sshService = require('../services/ssh');
 const slackService = require('../services/slack');
 const n8nService = require('../services/n8n');
 
+// Get available CLI tools
+router.get('/cli-tools', (req, res) => {
+  res.json(n8nService.getAvailableCliTools());
+});
+
 // Get all bots
 router.get('/', (req, res) => {
   try {
@@ -40,6 +45,7 @@ router.post('/', async (req, res) => {
     customUsername,        // Optional: Custom Linux username
     sshPublicKey,          // Optional: User-provided SSH public key
     description,           // Optional description
+    cliTool,               // Optional: CLI tool to use (claude, codex, aider)
   } = req.body;
 
   if (!name) {
@@ -66,6 +72,10 @@ router.post('/', async (req, res) => {
 
   const botDisplayName = sanitizedName.toUpperCase();
   const defaultChannelName = channelName || `claude-bot-${sanitizedName}`;
+
+  // Validate CLI tool
+  const validCliTools = Object.keys(n8nService.CLI_TOOLS);
+  const selectedCliTool = cliTool && validCliTools.includes(cliTool) ? cliTool : 'claude';
 
   let sshCredential = null;
   let slackCredential = null;
@@ -139,13 +149,14 @@ router.post('/', async (req, res) => {
       slackCredential.id,
       slackCredential.name,
       slackChannel?.channel?.id || null,
-      slackChannel?.channel?.name || null
+      slackChannel?.channel?.name || null,
+      selectedCliTool
     );
 
     // Step 8: Save bot to database
     const stmt = db.prepare(`
-      INSERT INTO bots (name, username, description, ssh_credential_id, slack_credential_id, workflow_id, slack_channel_id, slack_channel_name, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created')
+      INSERT INTO bots (name, username, description, ssh_credential_id, slack_credential_id, workflow_id, slack_channel_id, slack_channel_name, cli_tool, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'created')
     `);
     const result = stmt.run(
       botDisplayName,
@@ -155,7 +166,8 @@ router.post('/', async (req, res) => {
       slackCredential.id,
       workflow.id,
       slackChannel?.channel?.id || null,
-      slackChannel?.channel?.name || null
+      slackChannel?.channel?.name || null,
+      selectedCliTool
     );
 
     const messageparts = [];
@@ -177,8 +189,11 @@ router.post('/', async (req, res) => {
         workflow_id: workflow.id,
         workflow_url: `https://n8n.headbangtech.com/workflow/${workflow.id}`,
         slack_channel: slackChannel?.channel || null,
+        cli_tool: selectedCliTool,
+        cli_tool_name: n8nService.CLI_TOOLS[selectedCliTool]?.name || selectedCliTool,
         status: 'created',
         ssh_key_provided: !!sshPublicKey,
+        ssh_private_key: keypair.privateKey || null, // Only shown once!
       },
       message: messageparts.join(' '),
     });

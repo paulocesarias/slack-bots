@@ -69,6 +69,10 @@ function BotList({ bots, onBotDeleted, onStatusChanged, onError }) {
               <label>Linux User:</label>
               <code>{bot.username}</code>
             </div>
+            <div className="detail">
+              <label>CLI Tool:</label>
+              <span>{bot.cli_tool || 'claude'}</span>
+            </div>
             {bot.slack_channel_name && (
               <div className="detail">
                 <label>Channel:</label>
