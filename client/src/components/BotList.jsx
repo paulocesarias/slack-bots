@@ -2,6 +2,8 @@ import { useState } from 'react'
 
 function BotList({ bots, onBotDeleted, onStatusChanged, onError }) {
   const [actionLoading, setActionLoading] = useState({})
+  const [webhookUrls, setWebhookUrls] = useState({})
+  const [webhookLoading, setWebhookLoading] = useState({})
 
   const handleActivate = async (bot) => {
     setActionLoading(prev => ({ ...prev, [bot.id]: 'activate' }))
@@ -49,6 +51,34 @@ function BotList({ bots, onBotDeleted, onStatusChanged, onError }) {
     }
   }
 
+  const handleShowWebhook = async (bot) => {
+    // If already loaded, just toggle visibility
+    if (webhookUrls[bot.id]) {
+      setWebhookUrls(prev => ({ ...prev, [bot.id]: null }))
+      return
+    }
+
+    setWebhookLoading(prev => ({ ...prev, [bot.id]: true }))
+    try {
+      const res = await fetch(`/api/bots/${bot.id}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setWebhookUrls(prev => ({ ...prev, [bot.id]: data.webhook_url || 'Not found' }))
+    } catch (error) {
+      onError(error.message)
+    } finally {
+      setWebhookLoading(prev => ({ ...prev, [bot.id]: false }))
+    }
+  }
+
+  const copyWebhookUrl = (url) => {
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        // Could add a toast notification here
+      })
+      .catch(err => onError('Failed to copy URL'))
+  }
+
   if (bots.length === 0) {
     return <p className="empty-state">No bots created yet. Create your first bot above!</p>
   }
@@ -91,7 +121,32 @@ function BotList({ bots, onBotDeleted, onStatusChanged, onError }) {
             </div>
           </div>
 
+          {webhookUrls[bot.id] && (
+            <div className="webhook-url-display">
+              <label>Slack Webhook URL:</label>
+              <div className="webhook-url-row">
+                <code>{webhookUrls[bot.id]}</code>
+                {webhookUrls[bot.id] !== 'Not found' && (
+                  <button
+                    className="copy-btn-small"
+                    onClick={() => copyWebhookUrl(webhookUrls[bot.id])}
+                    title="Copy to clipboard"
+                  >
+                    Copy
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bot-actions">
+            <button
+              className="secondary"
+              onClick={() => handleShowWebhook(bot)}
+              disabled={webhookLoading[bot.id]}
+            >
+              {webhookLoading[bot.id] ? 'Loading...' : webhookUrls[bot.id] ? 'Hide Webhook' : 'Show Webhook'}
+            </button>
             <a
               href={`https://n8n.headbangtech.com/workflow/${bot.workflow_id}`}
               target="_blank"

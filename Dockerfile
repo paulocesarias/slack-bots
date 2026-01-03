@@ -25,9 +25,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies for user management
-# bash is needed because useradd validates the shell exists
-RUN apk add --no-cache shadow bash
+# Install runtime dependencies
+# openssh-client for SSH-based user management
+RUN apk add --no-cache openssh-client
 
 # Copy backend dependencies
 COPY --from=backend-builder /app/node_modules ./node_modules
@@ -39,8 +39,8 @@ COPY package*.json ./
 # Copy built frontend
 COPY --from=frontend-builder /app/client/dist ./client/dist
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
+# Create data and ssh directories
+RUN mkdir -p /app/data /app/ssh
 
 EXPOSE 3000
 

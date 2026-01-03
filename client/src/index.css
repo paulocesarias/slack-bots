@@ -891,3 +891,46 @@ button.warning:hover {
   padding: 0.875rem;
   font-size: 0.9rem;
 }
+
+/* Webhook URL Display */
+.webhook-url-display {
+  background: #0f172a;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.webhook-url-display label {
+  display: block;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}
+
+.webhook-url-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.webhook-url-row code {
+  flex: 1;
+  background: #1e293b;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: #a7f3d0;
+  word-break: break-all;
+}
+
+.copy-btn-small {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.7rem;
+  background: #3b82f6;
+  flex-shrink: 0;
+}
+
+.copy-btn-small:hover {
+  background: #2563eb;
+}

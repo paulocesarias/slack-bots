@@ -229,6 +229,18 @@ function getAvailableCliTools() {
   }));
 }
 
+// Extract webhook URL from a workflow
+function getWebhookUrlFromWorkflow(workflow) {
+  if (!workflow || !workflow.nodes) return null;
+
+  const slackTrigger = workflow.nodes.find(node => node.type === 'n8n-nodes-base.slackTrigger');
+  if (!slackTrigger || !slackTrigger.webhookId) return null;
+
+  // Construct the webhook URL
+  const baseUrl = N8N_API_ENDPOINT.replace('/api/v1', '');
+  return `${baseUrl}/webhook/${slackTrigger.webhookId}/webhook`;
+}
+
 module.exports = {
   createSSHCredential,
   createSlackCredential,
@@ -240,5 +252,6 @@ module.exports = {
   getWorkflow,
   getCredential,
   getAvailableCliTools,
+  getWebhookUrlFromWorkflow,
   CLI_TOOLS,
 };

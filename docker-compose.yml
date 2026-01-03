@@ -3,9 +3,8 @@ services:
     build: .
     container_name: slack-bots
     restart: unless-stopped
-    privileged: true
-    expose:
-      - "3000"
+    ports:
+      - "3000:3000"
     environment:
       - PORT=3000
       - NODE_ENV=production
@@ -20,32 +19,12 @@ services:
       - N8N_API_KEY=${N8N_API_KEY}
       - N8N_TEMPLATE_WORKFLOW_ID=${N8N_TEMPLATE_WORKFLOW_ID:-JTlX2bfBh6O4HcAR}
       - SSH_HOST=${SSH_HOST:-72.61.78.57}
-      - SSH_PORT=${SSH_PORT:-28473}
+      - SSH_PORT=${SSH_PORT:-22}
+      - SSH_USER=${SSH_USER:-root}
+      - SSH_KEY_PATH=/app/ssh/id_rsa
     volumes:
       - slack-bots-data:/app/data
-      - /etc/passwd:/etc/passwd:rw
-      - /etc/shadow:/etc/shadow:rw
-      - /etc/group:/etc/group:rw
-      - /home:/home:rw
-    networks:
-      - n8n_default
-      - n8n-workflows_default
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=n8n-workflows_default
-      - traefik.http.routers.slackbots.rule=Host(`slackbots.headbangtech.com`)
-      - traefik.http.routers.slackbots.tls=true
-      - traefik.http.routers.slackbots.entrypoints=web,websecure
-      - traefik.http.routers.slackbots.tls.certresolver=mytlschallenge
-      - traefik.http.services.slackbots.loadbalancer.server.port=3000
-      - traefik.http.middlewares.slackbots.headers.SSLRedirect=true
-      - traefik.http.middlewares.slackbots.headers.STSSeconds=315360000
-      - traefik.http.middlewares.slackbots.headers.browserXSSFilter=true
-      - traefik.http.middlewares.slackbots.headers.contentTypeNosniff=true
-      - traefik.http.middlewares.slackbots.headers.forceSTSHeader=true
-      - traefik.http.middlewares.slackbots.headers.STSIncludeSubdomains=true
-      - traefik.http.middlewares.slackbots.headers.STSPreload=true
-      - traefik.http.routers.slackbots.middlewares=slackbots@docker
+      - ${HOME}/.ssh/id_rsa:/app/ssh/id_rsa:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
@@ -55,9 +34,3 @@ services:
 
 volumes:
   slack-bots-data:
-
-networks:
-  n8n_default:
-    external: true
-  n8n-workflows_default:
-    external: true

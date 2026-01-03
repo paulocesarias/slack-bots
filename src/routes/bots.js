@@ -23,14 +23,26 @@ router.get('/', (req, res) => {
   }
 });
 
-// Get a single bot
-router.get('/:id', (req, res) => {
+// Get a single bot with webhook URL
+router.get('/:id', async (req, res) => {
   try {
     const bot = db.prepare('SELECT * FROM bots WHERE id = ?').get(req.params.id);
     if (!bot) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    res.json(bot);
+
+    // Fetch webhook URL from n8n workflow
+    let webhookUrl = null;
+    if (bot.workflow_id) {
+      try {
+        const workflow = await n8nService.getWorkflow(bot.workflow_id);
+        webhookUrl = n8nService.getWebhookUrlFromWorkflow(workflow);
+      } catch (e) {
+        console.error('Failed to fetch workflow for webhook URL:', e.message);
+      }
+    }
+
+    res.json({ ...bot, webhook_url: webhookUrl });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
