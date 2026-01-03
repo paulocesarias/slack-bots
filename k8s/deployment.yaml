@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slack-bots
+  namespace: slack-bots
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: slack-bots
+  template:
+    metadata:
+      labels:
+        app: slack-bots
+    spec:
+      containers:
+        - name: slack-bots
+          image: docker.io/library/slack-bots:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: "production"
+            - name: SESSION_DIR
+              value: "/app/data"
+            - name: GOOGLE_CALLBACK_URL
+              value: "https://slackbots.headbangtech.com/auth/google/callback"
+            - name: N8N_API_ENDPOINT
+              value: "https://n8n.headbangtech.com/api/v1"
+            - name: SSH_HOST
+              value: "72.61.78.57"
+            - name: SSH_PORT
+              value: "22"
+            - name: SSH_USER
+              value: "root"
+            - name: SSH_KEY_PATH
+              value: "/app/ssh/id_rsa"
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: slack-bots-secrets
+                  key: SESSION_SECRET
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: slack-bots-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: slack-bots-secrets
+                  key: GOOGLE_CLIENT_SECRET
+            - name: ALLOWED_EMAILS
+              valueFrom:
+                secretKeyRef:
+                  name: slack-bots-secrets
+                  key: ALLOWED_EMAILS
+            - name: ALLOWED_DOMAINS
+              valueFrom:
+                secretKeyRef:
+                  name: slack-bots-secrets
+                  key: ALLOWED_DOMAINS
+            - name: N8N_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: slack-bots-secrets
+                  key: N8N_API_KEY
+            - name: N8N_TEMPLATE_WORKFLOW_ID
+              valueFrom:
+                secretKeyRef:
+                  name: slack-bots-secrets
+                  key: N8N_TEMPLATE_WORKFLOW_ID
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: ssh-key
+              mountPath: /app/ssh
+              readOnly: true
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: slack-bots-data
+        - name: ssh-key
+          secret:
+            secretName: slack-bots-ssh-key
+            defaultMode: 0400
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: slack-bots-data
+  namespace: slack-bots
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: slack-bots
+  namespace: slack-bots
+spec:
+  selector:
+    app: slack-bots
+  ports:
+    - port: 3000
+      targetPort: 3000
