@@ -10,7 +10,7 @@ Features:
     - Silently counts read operations (no spam)
     - Summary of actions taken (Done: read 3 file(s), edited 1 file(s))
     - Session persistence for conversation continuity
-    - Image support (downloads and passes images to Claude)
+    - (Image support planned for future)
 """
 
 import sys
@@ -18,8 +18,6 @@ import json
 import subprocess
 import requests
 import base64
-import os
-import tempfile
 
 def send_slack(token, channel, thread_ts, text):
     """Send a message to Slack."""
@@ -32,22 +30,6 @@ def send_slack(token, channel, thread_ts, text):
         )
     except Exception as e:
         print(f"Error sending to Slack: {e}", file=sys.stderr)
-
-def download_slack_file(token, file_url, dest_path):
-    """Download a file from Slack."""
-    try:
-        response = requests.get(
-            file_url,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=30
-        )
-        if response.status_code == 200:
-            with open(dest_path, 'wb') as f:
-                f.write(response.content)
-            return True
-    except Exception as e:
-        print(f"Error downloading file: {e}", file=sys.stderr)
-    return False
 
 def main():
     if len(sys.argv) < 6:
@@ -66,38 +48,8 @@ def main():
     session_id = sys.argv[4]
     message = base64.b64decode(sys.argv[5]).decode('utf-8')
 
-    # Parse optional files argument
-    files = []
-    if len(sys.argv) >= 7 and sys.argv[6]:
-        try:
-            files_json = base64.b64decode(sys.argv[6]).decode('utf-8')
-            files = json.loads(files_json) if files_json else []
-        except Exception as e:
-            print(f"Error parsing files: {e}", file=sys.stderr)
-
     # Send processing message
     send_slack(slack_token, channel, thread_ts, "Processing your request...")
-
-    # Download any images/files to temp directory
-    temp_dir = tempfile.mkdtemp(prefix="claude_slack_")
-    downloaded_files = []
-    image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
-
-    for file_info in files:
-        file_url = file_info.get('url_private') or file_info.get('url')
-        file_name = file_info.get('name', 'file')
-        mimetype = file_info.get('mimetype', '')
-
-        if file_url:
-            # Check if it's an image
-            ext = os.path.splitext(file_name)[1].lower()
-            is_image = ext in image_extensions or mimetype.startswith('image/')
-
-            if is_image:
-                dest_path = os.path.join(temp_dir, file_name)
-                if download_slack_file(slack_token, file_url, dest_path):
-                    downloaded_files.append(dest_path)
-                    send_slack(slack_token, channel, thread_ts, f"Downloaded image `{file_name}`...")
 
     # Build Claude command
     cmd = [
@@ -109,24 +61,10 @@ def main():
         "--dangerously-skip-permissions"
     ]
 
-    # Add image files to command
-    for img_path in downloaded_files:
-        cmd.extend(["--image", img_path])
-
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     except Exception as e:
         send_slack(slack_token, channel, thread_ts, f"Error starting Claude: {e}")
-        # Cleanup temp files
-        for f in downloaded_files:
-            try:
-                os.remove(f)
-            except:
-                pass
-        try:
-            os.rmdir(temp_dir)
-        except:
-            pass
         sys.exit(1)
 
     # Track actions
@@ -212,17 +150,6 @@ def main():
         send_slack(slack_token, channel, thread_ts, final_result)
     elif process.returncode != 0:
         send_slack(slack_token, channel, thread_ts, "Sorry, something went wrong processing your request.")
-
-    # Cleanup temp files
-    for f in downloaded_files:
-        try:
-            os.remove(f)
-        except:
-            pass
-    try:
-        os.rmdir(temp_dir)
-    except:
-        pass
 
     print("Done")
 
