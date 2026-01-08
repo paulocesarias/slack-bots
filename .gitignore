@@ -6,3 +6,4 @@ node_modules/
 data/
 client/node_modules/
 client/dist/
+scripts/__pycache__/

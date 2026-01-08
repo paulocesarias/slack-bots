@@ -133,12 +133,13 @@ def main():
 User's message: {message}"""
 
         # Build Claude command
+        # Use --session-id (creates new or reuses existing) instead of --resume (fails if not found)
         cmd = [
             "/home/paulo/.local/bin/claude",
             "--output-format", "stream-json",
             "--verbose",
             "-p", full_message,
-            "--resume", session_id,
+            "--session-id", session_id,
             "--dangerously-skip-permissions"
         ]
 
