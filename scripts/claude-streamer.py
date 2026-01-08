@@ -34,7 +34,7 @@ def send_slack(token, channel, thread_ts, text):
         requests.post(
             "https://slack.com/api/chat.postMessage",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"channel": channel, "thread_ts": thread_ts, "text": f"[n8n-bot] {text}"},
+            json={"channel": channel, "thread_ts": thread_ts, "text": text},
             timeout=10
         )
     except Exception as e:
