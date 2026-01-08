@@ -156,6 +156,7 @@ User's message: {message}"""
         commands = 0
         final_result = ""
         reported_files = set()  # Avoid duplicate reports
+        error_lines = []  # Capture non-JSON output for debugging
 
         for line in process.stdout:
             line = line.strip()
@@ -165,6 +166,8 @@ User's message: {message}"""
             try:
                 data = json.loads(line)
             except json.JSONDecodeError:
+                # Capture non-JSON lines (likely errors)
+                error_lines.append(line)
                 continue
 
             # Handle tool use events
@@ -231,7 +234,15 @@ User's message: {message}"""
         if final_result:
             send_slack(slack_token, channel, thread_ts, final_result)
         elif process.returncode != 0:
-            send_slack(slack_token, channel, thread_ts, "Sorry, something went wrong processing your request.")
+            # Log the error for debugging
+            print(f"Claude exited with code {process.returncode}", file=sys.stderr)
+            if error_lines:
+                error_msg = "\n".join(error_lines[:5])  # First 5 error lines
+                print(f"Error output: {error_msg}", file=sys.stderr)
+                # Send a more helpful error message to Slack
+                send_slack(slack_token, channel, thread_ts, f"Sorry, something went wrong: {error_lines[0][:200]}")
+            else:
+                send_slack(slack_token, channel, thread_ts, "Sorry, something went wrong processing your request.")
 
     finally:
         # Cleanup temp directory
