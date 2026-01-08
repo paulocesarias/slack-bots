@@ -110,9 +110,13 @@ def main():
         except Exception as e:
             print(f"Error parsing files: {e}", file=sys.stderr)
 
-    # Add thinking reaction to user's message
-    THINKING_EMOJI = "thinking_face"
-    add_reaction(slack_token, channel, message_ts, THINKING_EMOJI)
+    # Reaction emojis
+    PROCESSING_EMOJI = "hourglass_flowing_sand"
+    SUCCESS_EMOJI = "white_check_mark"
+    ERROR_EMOJI = "x"
+
+    # Add processing reaction to user's message
+    add_reaction(slack_token, channel, message_ts, PROCESSING_EMOJI)
 
     # Create temp directory for downloaded files
     temp_dir = tempfile.mkdtemp(prefix="claude_slack_")
@@ -276,9 +280,12 @@ User's message: {message}"""
         if summary_parts:
             send_slack(slack_token, channel, thread_ts, f"Done: {', '.join(summary_parts)}")
 
-        # Send final result
+        # Send final result and add appropriate reaction
         if final_result:
             send_slack(slack_token, channel, thread_ts, final_result)
+            # Remove processing, add success
+            remove_reaction(slack_token, channel, message_ts, PROCESSING_EMOJI)
+            add_reaction(slack_token, channel, message_ts, SUCCESS_EMOJI)
         elif process.returncode != 0:
             # Log the error for debugging
             print(f"Claude exited with code {process.returncode}", file=sys.stderr)
@@ -289,10 +296,15 @@ User's message: {message}"""
                 send_slack(slack_token, channel, thread_ts, f"Sorry, something went wrong: {error_lines[0][:200]}")
             else:
                 send_slack(slack_token, channel, thread_ts, "Sorry, something went wrong processing your request.")
+            # Remove processing, add error
+            remove_reaction(slack_token, channel, message_ts, PROCESSING_EMOJI)
+            add_reaction(slack_token, channel, message_ts, ERROR_EMOJI)
+        else:
+            # No result but no error - just remove processing reaction
+            remove_reaction(slack_token, channel, message_ts, PROCESSING_EMOJI)
+            add_reaction(slack_token, channel, message_ts, SUCCESS_EMOJI)
 
     finally:
-        # Remove thinking reaction
-        remove_reaction(slack_token, channel, message_ts, THINKING_EMOJI)
 
         # Cleanup temp directory
         try:
