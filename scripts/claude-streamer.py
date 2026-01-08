@@ -40,6 +40,30 @@ def send_slack(token, channel, thread_ts, text):
     except Exception as e:
         print(f"Error sending to Slack: {e}", file=sys.stderr)
 
+def add_reaction(token, channel, timestamp, emoji):
+    """Add a reaction to a message."""
+    try:
+        requests.post(
+            "https://slack.com/api/reactions.add",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"channel": channel, "timestamp": timestamp, "name": emoji},
+            timeout=10
+        )
+    except Exception as e:
+        print(f"Error adding reaction: {e}", file=sys.stderr)
+
+def remove_reaction(token, channel, timestamp, emoji):
+    """Remove a reaction from a message."""
+    try:
+        requests.post(
+            "https://slack.com/api/reactions.remove",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"channel": channel, "timestamp": timestamp, "name": emoji},
+            timeout=10
+        )
+    except Exception as e:
+        print(f"Error removing reaction: {e}", file=sys.stderr)
+
 def download_slack_file(token, file_url, dest_path):
     """Download a file from Slack."""
     try:
@@ -59,11 +83,12 @@ def download_slack_file(token, file_url, dest_path):
     return False
 
 def main():
-    if len(sys.argv) < 6:
-        print("Usage: python3 claude-streamer.py <slack_token> <channel> <thread_ts> <session_id> <base64_message> [base64_files_json]")
+    if len(sys.argv) < 7:
+        print("Usage: python3 claude-streamer.py <slack_token> <channel> <thread_ts> <message_ts> <session_id> <base64_message> [base64_files_json]")
         print("  slack_token      - Slack Bot OAuth token (xoxb-...)")
         print("  channel          - Slack channel ID")
         print("  thread_ts        - Thread timestamp for replies")
+        print("  message_ts       - Original message timestamp (for reactions)")
         print("  session_id       - Claude session UUID for conversation continuity")
         print("  base64_message   - User message encoded in base64")
         print("  base64_files_json - Optional: JSON array of file objects [{url_private, name, mimetype}] encoded in base64")
@@ -72,20 +97,22 @@ def main():
     slack_token = sys.argv[1]
     channel = sys.argv[2]
     thread_ts = sys.argv[3]
-    session_id = sys.argv[4]
-    message = base64.b64decode(sys.argv[5]).decode('utf-8')
+    message_ts = sys.argv[4]  # The actual message to react to
+    session_id = sys.argv[5]
+    message = base64.b64decode(sys.argv[6]).decode('utf-8')
 
     # Parse optional files argument
     files = []
-    if len(sys.argv) >= 7 and sys.argv[6]:
+    if len(sys.argv) >= 8 and sys.argv[7]:
         try:
-            files_json = base64.b64decode(sys.argv[6]).decode('utf-8')
+            files_json = base64.b64decode(sys.argv[7]).decode('utf-8')
             files = json.loads(files_json) if files_json else []
         except Exception as e:
             print(f"Error parsing files: {e}", file=sys.stderr)
 
-    # Send processing message
-    send_slack(slack_token, channel, thread_ts, "Processing your request...")
+    # Add thinking reaction to user's message
+    THINKING_EMOJI = "thinking_face"
+    add_reaction(slack_token, channel, message_ts, THINKING_EMOJI)
 
     # Create temp directory for downloaded files
     temp_dir = tempfile.mkdtemp(prefix="claude_slack_")
@@ -264,6 +291,9 @@ User's message: {message}"""
                 send_slack(slack_token, channel, thread_ts, "Sorry, something went wrong processing your request.")
 
     finally:
+        # Remove thinking reaction
+        remove_reaction(slack_token, channel, message_ts, THINKING_EMOJI)
+
         # Cleanup temp directory
         try:
             shutil.rmtree(temp_dir)
