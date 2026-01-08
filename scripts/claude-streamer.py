@@ -133,21 +133,36 @@ def main():
 User's message: {message}"""
 
         # Build Claude command
-        # Use --session-id (creates new or reuses existing) instead of --resume (fails if not found)
-        cmd = [
-            "/home/paulo/.local/bin/claude",
-            "--output-format", "stream-json",
-            "--verbose",
-            "-p", full_message,
-            "--session-id", session_id,
-            "--dangerously-skip-permissions"
-        ]
+        # Try --resume first (for existing sessions), fall back to --session-id (for new sessions)
+        def build_cmd(use_resume=True):
+            c = [
+                "/home/paulo/.local/bin/claude",
+                "--output-format", "stream-json",
+                "--verbose",
+                "-p", full_message,
+            ]
+            if use_resume:
+                c.extend(["--resume", session_id])
+            else:
+                c.extend(["--session-id", session_id])
+            c.append("--dangerously-skip-permissions")
+            if downloaded_files:
+                c.extend(["--add-dir", temp_dir])
+            return c
 
-        # Add temp directory to allowed dirs so Claude can read the files
-        if downloaded_files:
-            cmd.extend(["--add-dir", temp_dir])
-
+        # Try resume first, if it fails with "No conversation found", try session-id
+        cmd = build_cmd(use_resume=True)
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+        # Peek at first line to check for session error
+        first_line = process.stdout.readline()
+        if first_line and "No conversation found" in first_line:
+            # Kill the failed process and retry with --session-id
+            process.kill()
+            process.wait()
+            cmd = build_cmd(use_resume=False)
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            first_line = None  # Don't process this line again
 
         # Track actions
         edits = 0
@@ -158,17 +173,18 @@ User's message: {message}"""
         reported_files = set()  # Avoid duplicate reports
         error_lines = []  # Capture non-JSON output for debugging
 
-        for line in process.stdout:
+        # Helper function to process a single line
+        def process_line(line):
+            nonlocal edits, writes, reads, commands, final_result
             line = line.strip()
             if not line:
-                continue
+                return
 
             try:
                 data = json.loads(line)
             except json.JSONDecodeError:
-                # Capture non-JSON lines (likely errors)
                 error_lines.append(line)
-                continue
+                return
 
             # Handle tool use events
             if data.get("type") == "assistant" and "message" in data:
@@ -198,21 +214,24 @@ User's message: {message}"""
 
                         elif tool_name == "Read":
                             reads += 1
-                            # Silent - don't report reads
 
                         elif tool_name == "Bash":
                             cmd_str = tool_input.get("command", "")
-                            # Only report significant commands (not cat, ls, etc.)
                             skip_prefixes = ("cat ", "head ", "tail ", "ls ", "pwd", "echo ", "grep ", "find ", "source ")
                             if cmd_str and not cmd_str.startswith(skip_prefixes):
                                 commands += 1
-                                # Truncate long commands
                                 display_cmd = cmd_str[:50] + "..." if len(cmd_str) > 50 else cmd_str
                                 send_slack(slack_token, channel, thread_ts, f"Running `{display_cmd}`...")
 
-            # Get final result
             if data.get("type") == "result":
                 final_result = data.get("result", "")
+
+        # Process first line if we have one
+        if first_line:
+            process_line(first_line)
+
+        for line in process.stdout:
+            process_line(line)
 
         process.wait()
 
