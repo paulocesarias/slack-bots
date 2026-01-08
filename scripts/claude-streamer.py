@@ -160,34 +160,34 @@ def main():
 User's message: {message}"""
 
         # Build Claude command
-        # Try --resume first (for existing sessions), fall back to --session-id (for new sessions)
-        def build_cmd(use_resume=True):
+        # Try --session-id first (for new sessions), fall back to --resume (for existing sessions)
+        def build_cmd(use_session_id=True):
             c = [
                 "/home/paulo/.local/bin/claude",
                 "--output-format", "stream-json",
                 "--verbose",
                 "-p", full_message,
             ]
-            if use_resume:
-                c.extend(["--resume", session_id])
-            else:
+            if use_session_id:
                 c.extend(["--session-id", session_id])
+            else:
+                c.extend(["--resume", session_id])
             c.append("--dangerously-skip-permissions")
             if downloaded_files:
                 c.extend(["--add-dir", temp_dir])
             return c
 
-        # Try resume first, if it fails with "No conversation found", try session-id
-        cmd = build_cmd(use_resume=True)
+        # Try --session-id first, if it fails with "already in use", switch to --resume
+        cmd = build_cmd(use_session_id=True)
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
         # Peek at first line to check for session error
         first_line = process.stdout.readline()
-        if first_line and "No conversation found" in first_line:
-            # Kill the failed process and retry with --session-id
+        if first_line and "already in use" in first_line:
+            # Session exists, use --resume instead
             process.kill()
             process.wait()
-            cmd = build_cmd(use_resume=False)
+            cmd = build_cmd(use_session_id=False)
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             first_line = None  # Don't process this line again
 
