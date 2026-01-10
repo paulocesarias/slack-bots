@@ -384,6 +384,9 @@ User's message: {message}"""
                 c.extend(["--add-dir", temp_dir])
             return c
 
+        # Track start time for duration calculation if result event is missing
+        start_time = time.time()
+
         # Try --session-id first, if it fails with "already in use", switch to --resume
         cmd = build_cmd(use_session_id=True)
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -625,46 +628,56 @@ User's message: {message}"""
         if first_line:
             process_line(first_line)
 
-        for line in process.stdout:
-            process_line(line)
+        try:
+            for line in process.stdout:
+                process_line(line)
+        except Exception as e:
+            print(f"Error reading process output: {e}", file=sys.stderr)
+            log_event("error", f"Error reading output: {e}", channel=channel, session=session_id)
 
         process.wait()
+
+        # Calculate duration if not captured from result event
+        if not result_stats.get("duration_ms"):
+            result_stats["duration_ms"] = int((time.time() - start_time) * 1000)
 
         # Final update to streaming message (remove typing indicator)
         if streaming_text:
             update_stream_if_needed(force=True)
 
-        # Send summary if work was done
+        # Send summary if work was done (wrapped in try/except to ensure we always reach reactions)
         summary_parts = []
-        if reads > 0:
-            summary_parts.append(f"read {reads} file(s)")
-        if edits > 0:
-            summary_parts.append(f"edited {edits} file(s)")
-        if writes > 0:
-            summary_parts.append(f"created {writes} file(s)")
-        if commands > 0:
-            summary_parts.append(f"ran {commands} command(s)")
-        if globs > 0:
-            summary_parts.append(f"searched {globs} pattern(s)")
-        if greps > 0:
-            summary_parts.append(f"grepped {greps} time(s)")
-        if web_fetches > 0:
-            summary_parts.append(f"fetched {web_fetches} URL(s)")
-        if web_searches > 0:
-            summary_parts.append(f"web searched {web_searches} time(s)")
-        if tasks > 0:
-            summary_parts.append(f"spawned {tasks} agent(s)")
-        if mcp_calls > 0:
-            summary_parts.append(f"called {mcp_calls} MCP tool(s)")
+        try:
+            if reads > 0:
+                summary_parts.append(f"read {reads} file(s)")
+            if edits > 0:
+                summary_parts.append(f"edited {edits} file(s)")
+            if writes > 0:
+                summary_parts.append(f"created {writes} file(s)")
+            if commands > 0:
+                summary_parts.append(f"ran {commands} command(s)")
+            if globs > 0:
+                summary_parts.append(f"searched {globs} pattern(s)")
+            if greps > 0:
+                summary_parts.append(f"grepped {greps} time(s)")
+            if web_fetches > 0:
+                summary_parts.append(f"fetched {web_fetches} URL(s)")
+            if web_searches > 0:
+                summary_parts.append(f"web searched {web_searches} time(s)")
+            if tasks > 0:
+                summary_parts.append(f"spawned {tasks} agent(s)")
+            if mcp_calls > 0:
+                summary_parts.append(f"called {mcp_calls} MCP tool(s)")
 
-        if summary_parts:
-            send_slack(slack_token, channel, thread_ts, f"Done: {', '.join(summary_parts)}")
+            if summary_parts:
+                send_slack(slack_token, channel, thread_ts, f"Done: {', '.join(summary_parts)}")
 
-        # Send stats if available
-        if result_stats:
+            # Send stats (duration is always available now via start_time fallback)
+            # Note: cost and tokens may be missing if Claude was interrupted before result event
             stats_parts = []
-            if result_stats.get("duration_ms"):
-                duration_sec = result_stats["duration_ms"] / 1000
+            duration_ms = result_stats.get("duration_ms", 0)
+            if duration_ms:
+                duration_sec = duration_ms / 1000
                 stats_parts.append(f"{duration_sec:.1f}s")
             if result_stats.get("cost"):
                 cost = result_stats["cost"]
@@ -678,14 +691,17 @@ User's message: {message}"""
             if stats_parts:
                 send_slack(slack_token, channel, thread_ts, f"_Stats: {' | '.join(stats_parts)}_")
 
-        # Log session completion
-        log_event("info", f"Session completed: {', '.join(summary_parts) if summary_parts else 'no actions'}",
-                  channel=channel, session=session_id,
-                  reads=reads, edits=edits, writes=writes, commands=commands,
-                  globs=globs, greps=greps, web_fetches=web_fetches, web_searches=web_searches,
-                  tasks=tasks, mcp_calls=mcp_calls,
-                  duration_ms=result_stats.get("duration_ms", 0),
-                  cost_usd=result_stats.get("cost", 0))
+            # Log session completion
+            log_event("info", f"Session completed: {', '.join(summary_parts) if summary_parts else 'no actions'}",
+                      channel=channel, session=session_id,
+                      reads=reads, edits=edits, writes=writes, commands=commands,
+                      globs=globs, greps=greps, web_fetches=web_fetches, web_searches=web_searches,
+                      tasks=tasks, mcp_calls=mcp_calls,
+                      duration_ms=result_stats.get("duration_ms", 0),
+                      cost_usd=result_stats.get("cost", 0))
+        except Exception as e:
+            print(f"Error sending summary/stats: {e}", file=sys.stderr)
+            log_event("error", f"Summary/stats error: {e}", channel=channel, session=session_id)
 
         # Handle final result and reactions
         # Note: streaming_text already contains the response (streamed in real-time)
