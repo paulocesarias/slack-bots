@@ -3,30 +3,36 @@ const N8N_API_KEY = process.env.N8N_API_KEY;
 const SSH_HOST = process.env.SSH_HOST || '72.61.78.57';
 const SSH_PORT = parseInt(process.env.SSH_PORT || '28473');
 
+// Core Handler workflow ID (PROD) - all bots call this sub-workflow
+const CORE_HANDLER_WORKFLOW_ID = 'SzSWuatYOMAXB2bz';
+
 // CLI tool configurations
-// Each tool has a command template that uses n8n expression syntax:
-// - {{ $json.encodedMessage }} - base64-encoded message from Slack
-// - {{ $json.sessionId }} - unique session ID for conversation context
+// Note: In v2 architecture, the Core Handler + claude-streamer.py handles execution
+// These are kept for display purposes and future multi-tool support
 const CLI_TOOLS = {
   claude: {
     name: 'Claude Code',
-    command: `bash -i -l -c "claude -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\" --session-id {{ $json.sessionId }} --dangerously-skip-permissions" || bash -i -l -c "claude -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\" -r {{ $json.sessionId }} --dangerously-skip-permissions"`,
+    description: 'Anthropic Claude-powered coding assistant with streaming responses',
   },
   codex: {
     name: 'Codex CLI',
-    command: `bash -i -l -c "codex exec -q \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\""`,
+    description: 'OpenAI Codex-based CLI tool (not yet supported in v2)',
+    supported: false,
   },
   gemini: {
     name: 'Gemini CLI',
-    command: `bash -i -l -c "gemini -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\""`,
+    description: 'Google Gemini-powered coding assistant (not yet supported in v2)',
+    supported: false,
   },
   grok: {
     name: 'Grok CLI',
-    command: `bash -i -l -c "grok -p \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\""`,
+    description: 'xAI Grok-powered coding assistant (not yet supported in v2)',
+    supported: false,
   },
   aider: {
     name: 'Aider',
-    command: `bash -i -l -c "aider --message \\"\\$(echo '{{ $json.encodedMessage }}' | base64 -d)\\" --yes"`,
+    description: 'AI pair programming tool (not yet supported in v2)',
+    supported: false,
   },
 };
 
@@ -113,74 +119,158 @@ async function getWorkflow(workflowId) {
   return apiRequest('GET', `/workflows/${workflowId}`);
 }
 
-// Create a new workflow based on template
-async function createWorkflow(name, username, sshCredentialId, sshCredentialName, slackCredentialId, slackCredentialName, slackChannelId, slackChannelName, cliTool = 'claude') {
-  // Get template workflow (Slack Bot TP)
-  const templateId = process.env.N8N_TEMPLATE_WORKFLOW_ID || 'JTlX2bfBh6O4HcAR';
-  const template = await getWorkflow(templateId);
+// Create a new workflow based on v2 template (sub-workflow architecture)
+async function createWorkflow(name, username, sshCredentialId, sshCredentialName, slackCredentialId, slackCredentialName, slackChannelId, slackChannelName, slackToken, cliTool = 'claude') {
+  // Generate unique IDs for this workflow
+  const webhookId = generateUUID();
 
-  // Get the CLI tool configuration
-  const toolConfig = CLI_TOOLS[cliTool] || CLI_TOOLS.claude;
-
-  // Clone and modify the workflow
+  // Build the v2 workflow structure directly (no template needed)
+  // This uses the Core Handler sub-workflow architecture with streaming support
   const newWorkflow = {
     name: `Slack Bot ${name}`,
-    nodes: template.nodes.map(node => {
-      const newNode = { ...node };
-
-      // Update SSH node
-      if (node.type === 'n8n-nodes-base.ssh') {
-        newNode.parameters = {
-          ...node.parameters,
-          cwd: `/home/${username}`,
-          command: `=${toolConfig.command}`,
-        };
-        newNode.credentials = {
-          sshPrivateKey: {
-            id: sshCredentialId,
-            name: sshCredentialName,
-          },
-        };
-      }
-
-      // Update Slack nodes (send message)
-      if (node.type === 'n8n-nodes-base.slack') {
-        newNode.credentials = {
-          slackApi: {
-            id: slackCredentialId,
-            name: slackCredentialName,
-          },
-        };
-      }
-
-      // Update Slack Trigger node with channel ID and new webhook ID
-      if (node.type === 'n8n-nodes-base.slackTrigger') {
-        newNode.parameters = {
-          ...node.parameters,
+    nodes: [
+      {
+        parameters: {
+          trigger: ['message'],
           channelId: {
             __rl: true,
             value: slackChannelId || 'CONFIGURE_ME',
             mode: slackChannelId ? 'id' : 'list',
             cachedResultName: slackChannelName || 'Select a channel',
           },
-        };
-        newNode.credentials = {
+          options: {},
+        },
+        type: 'n8n-nodes-base.slackTrigger',
+        typeVersion: 1,
+        position: [160, 0],
+        id: generateUUID(),
+        name: 'Slack Trigger',
+        webhookId: webhookId,
+        credentials: {
           slackApi: {
             id: slackCredentialId,
             name: slackCredentialName,
           },
-        };
-        // Generate new webhook ID so each workflow has a unique webhook URL
-        newNode.webhookId = generateUUID();
-      }
+        },
+      },
+      {
+        parameters: {
+          workflowId: {
+            __rl: true,
+            value: CORE_HANDLER_WORKFLOW_ID,
+            mode: 'id',
+          },
+          options: {},
+        },
+        type: 'n8n-nodes-base.executeWorkflow',
+        typeVersion: 1.2,
+        position: [360, 0],
+        id: generateUUID(),
+        name: 'Call Core Handler',
+      },
+      {
+        parameters: {
+          conditions: {
+            options: {
+              caseSensitive: true,
+              leftValue: '',
+              typeValidation: 'strict',
+              version: 3,
+            },
+            conditions: [
+              {
+                id: 'should-process',
+                leftValue: '={{ $json.shouldProcess }}',
+                rightValue: true,
+                operator: {
+                  type: 'boolean',
+                  operation: 'equals',
+                },
+              },
+            ],
+            combinator: 'and',
+          },
+          options: {},
+        },
+        type: 'n8n-nodes-base.if',
+        typeVersion: 2.3,
+        position: [560, 0],
+        id: generateUUID(),
+        name: 'Should Process?',
+      },
+      {
+        parameters: {
+          authentication: 'privateKey',
+          command: `=# Deduplication check using lock file
+MSG_TS="{{ $json.message_ts }}"
+LOCK_FILE="/tmp/slack_lock_\${MSG_TS}"
 
-      // Generate new IDs for nodes
-      newNode.id = generateUUID();
+# Try to create lock file - if it exists, another process is handling this
+if ! mkdir "$LOCK_FILE" 2>/dev/null; then
+  echo "Duplicate message, skipping"
+  exit 0
+fi
 
-      return newNode;
-    }),
-    connections: template.connections,
-    settings: template.settings,
+# Clean up lock file after 60 seconds (in background)
+(sleep 60 && rmdir "$LOCK_FILE" 2>/dev/null) &
+
+# Export Slack token and run the Claude streamer script
+export SLACK_TOKEN="${slackToken}"
+python3 /opt/slack-bots/claude-streamer.py "{{ $json.channel }}" "{{ $json.thread_ts }}" "{{ $json.message_ts }}" "{{ $json.sessionId }}" "{{ $json.encodedMessage }}" "{{ $json.encodedFiles }}"`,
+          cwd: `/home/${username}`,
+        },
+        type: 'n8n-nodes-base.ssh',
+        typeVersion: 1,
+        position: [760, 0],
+        id: generateUUID(),
+        name: 'Execute Claude with Streaming',
+        credentials: {
+          sshPrivateKey: {
+            id: sshCredentialId,
+            name: sshCredentialName,
+          },
+        },
+      },
+    ],
+    connections: {
+      'Slack Trigger': {
+        main: [
+          [
+            {
+              node: 'Call Core Handler',
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+      'Call Core Handler': {
+        main: [
+          [
+            {
+              node: 'Should Process?',
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+      'Should Process?': {
+        main: [
+          [
+            {
+              node: 'Execute Claude with Streaming',
+              type: 'main',
+              index: 0,
+            },
+          ],
+        ],
+      },
+    },
+    settings: {
+      executionOrder: 'v1',
+      callerPolicy: 'workflowsFromSameOwner',
+    },
     staticData: null,
   };
 
@@ -226,6 +316,8 @@ function getAvailableCliTools() {
   return Object.entries(CLI_TOOLS).map(([key, value]) => ({
     id: key,
     name: value.name,
+    description: value.description,
+    supported: value.supported !== false, // Default to true if not specified
   }));
 }
 

@@ -85,9 +85,17 @@ router.post('/', async (req, res) => {
   const botDisplayName = sanitizedName.toUpperCase();
   const defaultChannelName = channelName || `claude-bot-${sanitizedName}`;
 
-  // Validate CLI tool
-  const validCliTools = Object.keys(n8nService.CLI_TOOLS);
-  const selectedCliTool = cliTool && validCliTools.includes(cliTool) ? cliTool : 'claude';
+  // Validate CLI tool (only supported tools in v2 architecture)
+  const supportedCliTools = Object.entries(n8nService.CLI_TOOLS)
+    .filter(([_, config]) => config.supported !== false)
+    .map(([key]) => key);
+
+  if (cliTool && !supportedCliTools.includes(cliTool)) {
+    return res.status(400).json({
+      error: `CLI tool '${cliTool}' is not yet supported. Supported tools: ${supportedCliTools.join(', ')}`
+    });
+  }
+  const selectedCliTool = cliTool && supportedCliTools.includes(cliTool) ? cliTool : 'claude';
 
   let sshCredential = null;
   let slackCredential = null;
@@ -152,7 +160,7 @@ router.post('/', async (req, res) => {
       slackToken
     );
 
-    // Step 7: Create n8n workflow from template
+    // Step 7: Create n8n workflow from template (v2 architecture with Core Handler)
     workflow = await n8nService.createWorkflow(
       botDisplayName,
       username,
@@ -162,6 +170,7 @@ router.post('/', async (req, res) => {
       slackCredential.name,
       slackChannel?.channel?.id || null,
       slackChannel?.channel?.name || null,
+      slackToken,  // Passed to embed in SSH command for claude-streamer.py
       selectedCliTool
     );
 

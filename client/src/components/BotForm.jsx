@@ -150,10 +150,18 @@ function BotForm({ onBotCreated, onError }) {
             onChange={(e) => setCliTool(e.target.value)}
           >
             {cliTools.map(tool => (
-              <option key={tool.id} value={tool.id}>{tool.name}</option>
+              <option
+                key={tool.id}
+                value={tool.id}
+                disabled={!tool.supported}
+              >
+                {tool.name}{!tool.supported ? ' (coming soon)' : ''}
+              </option>
             ))}
           </select>
-          <small>The AI coding assistant to use via SSH</small>
+          <small>
+            {cliTools.find(t => t.id === cliTool)?.description || 'The AI coding assistant to use via SSH'}
+          </small>
         </div>
 
         <div className="form-group">
