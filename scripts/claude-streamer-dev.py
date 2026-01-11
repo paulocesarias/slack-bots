@@ -45,7 +45,7 @@ MAX_FILE_COUNT = 5  # Maximum number of files per message
 # Streaming text configuration
 STREAM_UPDATE_INTERVAL_MS = 500  # Minimum time between Slack updates (rate limit protection)
 STREAM_MIN_CHARS = 50  # Minimum new characters before updating
-STREAM_TYPING_INDICATOR = " ▌"  # Cursor-like indicator while streaming
+STREAM_TYPING_INDICATOR = "..."  # Simple ellipsis while streaming
 SLACK_MAX_MESSAGE_LENGTH = 39000  # Slack's limit is 40000, leave buffer for safety
 
 # Logging configuration
@@ -109,7 +109,7 @@ def send_slack(token, channel, thread_ts, text):
         print(f"Error sending to Slack: {e}", file=sys.stderr)
     return None
 
-def update_slack_message(token, channel, ts, text):
+def update_slack_message(token, channel, ts, text, timeout=10):
     """Update an existing Slack message. Returns True if successful."""
     try:
         # Truncate if too long (Slack limit is 40000 chars)
@@ -120,16 +120,19 @@ def update_slack_message(token, channel, ts, text):
             "https://slack.com/api/chat.update",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json={"channel": channel, "ts": ts, "text": text},
-            timeout=10
+            timeout=timeout
         )
         data = response.json()
         if not data.get("ok"):
             error = data.get("error", "unknown")
-            print(f"Slack update error: {error}", file=sys.stderr)
+            print(f"Slack update error: {error} (ts={ts}, text_len={len(text)})", file=sys.stderr)
             return False
         return True
+    except requests.exceptions.Timeout:
+        print(f"Slack update timeout after {timeout}s (ts={ts}, text_len={len(text)})", file=sys.stderr)
+        return False
     except Exception as e:
-        print(f"Error updating Slack message: {e}", file=sys.stderr)
+        print(f"Error updating Slack message: {e} (ts={ts}, text_len={len(text)})", file=sys.stderr)
         return False
 
 def add_reaction(token, channel, timestamp, emoji):
@@ -445,10 +448,13 @@ User's message: {message}"""
             )
 
             if not should_update or not streaming_text:
-                return
+                return True  # Nothing to do is success
 
             # Add typing indicator if not final update
             display_text = streaming_text + (STREAM_TYPING_INDICATOR if not force else "")
+
+            # Use longer timeout for final updates (force=True)
+            update_timeout = 30 if force else 10
 
             # Check if message is getting too long for Slack
             # Use a safe cutoff point to avoid splitting mid-word
@@ -470,7 +476,7 @@ User's message: {message}"""
                 # Finalize current message and start a new one
                 if streaming_msg_ts:
                     finalized_text = streaming_text[:break_point] + "\n\n_[Continued in next message...]_"
-                    update_slack_message(slack_token, channel, streaming_msg_ts, finalized_text)
+                    update_slack_message(slack_token, channel, streaming_msg_ts, finalized_text, timeout=update_timeout)
                     all_message_ts_list.append(streaming_msg_ts)
 
                 # Keep the remainder for the continuation
@@ -485,15 +491,25 @@ User's message: {message}"""
                 # Recalculate display_text with new streaming_text
                 display_text = streaming_text + (STREAM_TYPING_INDICATOR if not force else "")
 
+            update_success = False
             if streaming_msg_ts:
                 # Update existing message
-                update_slack_message(slack_token, channel, streaming_msg_ts, display_text)
+                update_success = update_slack_message(slack_token, channel, streaming_msg_ts, display_text, timeout=update_timeout)
+                if not update_success and force:
+                    # Final update failed on existing message - log for debugging
+                    print(f"Final update failed for ts={streaming_msg_ts}, text_len={len(display_text)}", file=sys.stderr)
             else:
                 # Create new streaming message
-                streaming_msg_ts = send_slack(slack_token, channel, thread_ts, display_text)
+                new_ts = send_slack(slack_token, channel, thread_ts, display_text)
+                if new_ts:
+                    streaming_msg_ts = new_ts
+                    update_success = True
+                else:
+                    print(f"Failed to create new streaming message, text_len={len(display_text)}", file=sys.stderr)
 
             last_stream_update = now
             last_streamed_len = len(streaming_text)
+            return update_success
 
         # Helper function to process a single line
         def process_line(line):
@@ -642,8 +658,46 @@ User's message: {message}"""
             result_stats["duration_ms"] = int((time.time() - start_time) * 1000)
 
         # Final update to streaming message (remove typing indicator)
+        # This is critical - retry up to 3 times if it fails
         if streaming_text:
-            update_stream_if_needed(force=True)
+            final_update_success = False
+            for attempt in range(3):
+                try:
+                    # Get current state before update
+                    current_ts = streaming_msg_ts
+                    current_text_len = len(streaming_text)
+
+                    result = update_stream_if_needed(force=True)
+
+                    # Check the actual return value from the update function
+                    if result:
+                        final_update_success = True
+                        log_event("info", f"Final streaming update succeeded on attempt {attempt + 1}",
+                                  channel=channel, session=session_id, text_len=current_text_len,
+                                  msg_ts=streaming_msg_ts)
+                        break
+                    else:
+                        log_event("warning", f"Final update attempt {attempt + 1} returned False",
+                                  channel=channel, session=session_id, msg_ts=current_ts)
+                        time.sleep(1)  # Pause before retry
+                except Exception as e:
+                    log_event("error", f"Final update attempt {attempt + 1} exception: {e}",
+                              channel=channel, session=session_id)
+                    time.sleep(1)  # Brief pause before retry
+
+            if not final_update_success:
+                log_event("error", "All final update attempts failed - sending fallback message",
+                          channel=channel, session=session_id, text_len=len(streaming_text))
+                # Fallback: send the final text as a new message if update completely failed
+                # Send just the last portion if it's too long
+                fallback_text = streaming_text
+                if len(fallback_text) > SLACK_MAX_MESSAGE_LENGTH:
+                    fallback_text = "...\n\n" + streaming_text[-(SLACK_MAX_MESSAGE_LENGTH - 10):]
+                fallback_ts = send_slack(slack_token, channel, thread_ts, fallback_text)
+                if fallback_ts:
+                    log_event("info", "Fallback message sent successfully", channel=channel, session=session_id)
+                else:
+                    log_event("error", "Fallback message also failed!", channel=channel, session=session_id)
 
         # Send summary if work was done (wrapped in try/except to ensure we always reach reactions)
         summary_parts = []
