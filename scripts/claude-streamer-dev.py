@@ -29,6 +29,7 @@ import stat
 import logging
 import time
 import re
+import threading
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
@@ -47,6 +48,10 @@ STREAM_UPDATE_INTERVAL_MS = 500  # Minimum time between Slack updates (rate limi
 STREAM_MIN_CHARS = 50  # Minimum new characters before updating
 STREAM_TYPING_INDICATOR = "..."  # Simple ellipsis while streaming
 SLACK_MAX_MESSAGE_LENGTH = 39000  # Slack's limit is 40000, leave buffer for safety
+
+# Safe word configuration
+SAFE_WORD = "!stop"
+SAFE_WORD_POLL_INTERVAL = 2  # Check for safe word every 2 seconds
 
 # Logging configuration
 LOG_DIR = "/var/log/claude-streamer"
@@ -158,6 +163,75 @@ def remove_reaction(token, channel, timestamp, emoji):
         )
     except Exception as e:
         print(f"Error removing reaction: {e}", file=sys.stderr)
+
+class SafeWordMonitor:
+    """Monitors a Slack thread for the safe word and kills the process if detected."""
+
+    def __init__(self, token, channel, thread_ts, bot_start_ts):
+        self.token = token
+        self.channel = channel
+        self.thread_ts = thread_ts
+        self.bot_start_ts = bot_start_ts  # Only check messages after this timestamp
+        self.triggered = False
+        self.trigger_user = None
+        self._stop_event = threading.Event()
+        self._thread = None
+
+    def start(self):
+        """Start monitoring in a background thread."""
+        self._thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        """Stop the monitoring thread."""
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+
+    def _poll_loop(self):
+        """Poll Slack thread for the safe word."""
+        while not self._stop_event.is_set():
+            self._stop_event.wait(SAFE_WORD_POLL_INTERVAL)
+            if self._stop_event.is_set():
+                break
+            try:
+                self._check_thread()
+            except Exception as e:
+                print(f"SafeWordMonitor error: {e}", file=sys.stderr)
+
+    def _check_thread(self):
+        """Check thread replies for the safe word."""
+        try:
+            response = requests.get(
+                "https://slack.com/api/conversations.replies",
+                headers={"Authorization": f"Bearer {self.token}"},
+                params={
+                    "channel": self.channel,
+                    "ts": self.thread_ts,
+                    "oldest": self.bot_start_ts,
+                },
+                timeout=5
+            )
+            data = response.json()
+            if not data.get("ok"):
+                return
+
+            for msg in data.get("messages", []):
+                # Skip messages from before we started processing
+                if float(msg.get("ts", "0")) <= float(self.bot_start_ts):
+                    continue
+                # Skip bot messages (no user field or has bot_id)
+                if not msg.get("user") or msg.get("bot_id"):
+                    continue
+                # Check for safe word (case-insensitive, trimmed)
+                text = msg.get("text", "").strip().lower()
+                if text == SAFE_WORD.lower():
+                    self.triggered = True
+                    self.trigger_user = msg.get("user", "unknown")
+                    return
+        except Exception as e:
+            print(f"SafeWordMonitor check error: {e}", file=sys.stderr)
+
 
 def get_file_size_from_slack(token, file_url):
     """Get file size using HEAD request before downloading."""
@@ -404,6 +478,11 @@ User's message: {message}"""
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             first_line = None  # Don't process this line again
 
+        # Start safe word monitor
+        safe_word_monitor = SafeWordMonitor(slack_token, channel, thread_ts, message_ts)
+        safe_word_monitor.start()
+        was_stopped = False  # Track if process was killed by safe word
+
         # Track actions
         edits = 0
         writes = 0
@@ -646,16 +725,47 @@ User's message: {message}"""
 
         try:
             for line in process.stdout:
+                # Check safe word before processing each line
+                if safe_word_monitor.triggered:
+                    was_stopped = True
+                    process.kill()
+                    log_event("info", f"Safe word triggered by user {safe_word_monitor.trigger_user}",
+                              channel=channel, session=session_id)
+                    break
                 process_line(line)
         except Exception as e:
             print(f"Error reading process output: {e}", file=sys.stderr)
             log_event("error", f"Error reading output: {e}", channel=channel, session=session_id)
 
         process.wait()
+        safe_word_monitor.stop()
 
         # Calculate duration if not captured from result event
         if not result_stats.get("duration_ms"):
             result_stats["duration_ms"] = int((time.time() - start_time) * 1000)
+
+        # Handle safe word stop
+        if was_stopped:
+            # Finalize whatever text we have so far
+            if streaming_text:
+                streaming_text += "\n\n:octagonal_sign: *Stopped by user*"
+                update_stream_if_needed(force=True)
+            else:
+                send_slack(slack_token, channel, thread_ts, ":octagonal_sign: *Stopped by user*")
+
+            # Reactions
+            remove_reaction(slack_token, channel, message_ts, PROCESSING_EMOJI)
+            add_reaction(slack_token, channel, message_ts, "octagonal_sign")
+
+            # Stats
+            duration_ms = result_stats.get("duration_ms", 0)
+            if duration_ms:
+                send_slack(slack_token, channel, thread_ts,
+                    f"_Cancelled after {duration_ms/1000:.1f}s_")
+
+            log_event("info", "Session stopped by safe word", channel=channel, session=session_id,
+                      duration_ms=duration_ms)
+            return  # Skip normal completion flow
 
         # Final update to streaming message (remove typing indicator)
         # This is critical - retry up to 3 times if it fails
